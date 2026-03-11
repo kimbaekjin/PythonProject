@@ -11,8 +11,8 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 count_4 = 0
 count_last = 0
 
-TARGET_4 = 7
-TARGET_LAST = 6
+TARGET_4 = 4
+TARGET_LAST = 4
 
 @bot.event
 async def on_ready():
