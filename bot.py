@@ -15,6 +15,9 @@ count_last = 0
 TARGET_4 = 4
 TARGET_LAST = 4
 
+my_gold = 0
+eight_gold = 0
+
 
 @bot.event
 async def on_ready():
@@ -27,6 +30,15 @@ async def on_message(message):
         return
 
     content = message.content
+
+    if await handle_split(message, content):
+        return
+
+    if await handle_spend(message, content):
+        return
+
+    if await handle_split_reset(message, content):
+        return
 
     if await handle_auction(message, content):
         return
@@ -43,6 +55,84 @@ async def on_message(message):
     if await handle_misc(message, content):
         return
 
+async def handle_split_reset(message, content):
+    global my_gold, eight_gold
+
+    if content != "/분배초기화":
+        return False
+
+    my_gold = 0
+    eight_gold = 0
+
+    await message.channel.send(
+        "💰 분배 데이터 초기화 완료\n"
+        "나 : 0\n"
+        "에잇 : 0"
+    )
+
+    return True
+
+async def handle_spend(message, content):
+    global my_gold, eight_gold
+
+    if not content.startswith("/"):
+        return False
+
+    parts = content.split()
+
+    if len(parts) != 2:
+        return False
+
+    name = parts[0][1:]
+    amount = parts[1]
+
+    if not amount.isdigit():
+        return False
+
+    amount = int(amount)
+
+    if name == "나":
+        my_gold -= amount
+
+    elif name == "에잇":
+        eight_gold -= amount
+
+    else:
+        return False
+
+    await message.channel.send(
+        f"💰 현재 골드\n"
+        f"나 : {my_gold}\n"
+        f"에잇 : {eight_gold}"
+    )
+
+    return True
+
+async def handle_split(message, content):
+    global my_gold, eight_gold
+
+    if not content.startswith("/"):
+        return False
+
+    cmd = content[1:]
+
+    if not cmd.isdigit():
+        return False
+
+    gold = int(cmd)
+
+    split = int(gold * 0.95 / 2)
+
+    my_gold += split
+    eight_gold += split
+
+    await message.channel.send(
+        f"💰 분배 결과\n"
+        f"나 : {my_gold}\n"
+        f"에잇 : {eight_gold}"
+    )
+
+    return True
 
 # 경매 계산
 async def handle_auction(message, content):
