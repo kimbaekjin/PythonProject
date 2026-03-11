@@ -159,6 +159,9 @@ async def handle_split(message, content):
 
     cmd = content[1:]
 
+    if " " in cmd:
+        return False
+
     if not cmd.isdigit():
         return False
 
