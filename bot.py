@@ -65,5 +65,11 @@ async def on_message(message):
             await msg.delete()
 
         await message.channel.send("✅ 모든 기록 초기화 완료")
+        
+    if content == "/혜진":
+        await message.channel.send("뱃살보송...")
+        await message.channel.sned(
+            f"뺏살 지룡"
+        )
 
 bot.run(TOKEN)
