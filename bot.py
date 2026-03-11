@@ -39,6 +39,9 @@ async def on_message(message):
     if await handle_spend(message, content):
         return
 
+    if await handle_gold_status(message, content):
+        return
+
     if await handle_split_reset(message, content):
         return
 
@@ -59,7 +62,7 @@ async def on_message(message):
 
     return True
 
-async def handle_split_reset(message, content):
+async def handle_gold_status(message, content):
     global my_gold, eight_gold
 
     if content != "/분배초기화":
@@ -72,6 +75,18 @@ async def handle_split_reset(message, content):
         "💰 분배 데이터 초기화 완료\n"
         "나 : 0\n"
         "에잇 : 0"
+    )
+
+    return True
+
+async def handle_split_reset(message, content):
+    if content != "/내놔":
+        return False
+
+    await message.channel.send(
+        f"💰 받아야하는 골드\n"
+        f"나 : {my_gold}\n"
+        f"에잇 : {eight_gold}"
     )
 
     return True
