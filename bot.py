@@ -239,12 +239,6 @@ async def handle_misc(message, content):
 
     return False
 
-@bot.event
-async def on_ready():
-    bot.tree.clear_commands(guild=None)
-    await bot.tree.sync()
-    print("명령어 초기화 완료")
-
 @bot.tree.command(name="도움", description="명령어 목록 보기")
 async def help_cmd(interaction: discord.Interaction):
 
