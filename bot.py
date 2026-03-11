@@ -52,8 +52,51 @@ async def on_message(message):
     if await handle_reset(message, content):
         return
 
+    if await handle_commands(message, content):
+        return
+
     if await handle_misc(message, content):
         return
+
+async def handle_commands(message, content):
+
+    if content != "/명령어":
+        return False
+
+    await message.channel.send(
+        "📖 사용 가능한 명령어\n\n"
+        "💰 버스 유각 분배(신뢰도 대용)\n"
+        "/숫자\n"
+        "예: /15000\n"
+        "→ 골드를 95% 기준으로 나, 에잇에게 분배 후 누적\n\n"
+
+        "💸 버스 유각 분배완료\n"
+        "/나 숫자\n"
+        "/에잇 숫자\n"
+        "예: /나 17000\n"
+        "→ 해당 금액 차감\n\n"
+
+        "🔄 유각분배 초기화\n"
+        "/분배초기화\n"
+        "→ 분배된 골드 0으로 초기화\n\n"
+
+        "🎯 경매 계산\n"
+        "/아이템가격 파티인원\n"
+        "예: /15000 8\n"
+        "→ 로아 경매 입찰가 계산\n\n"
+
+        "📈 현재 혜진이한테 줘야하는 골드현황\n"
+        "/현황\n"
+        "→ 현재 레이드 진행 상황 표시\n\n"
+
+        "🧹 레이드 기록 초기화\n"
+        "/초기화\n\n"
+
+        "🐷 숨겨진 명령어\n"
+        "/혜진"
+    )
+
+    return True
 
 async def handle_split_reset(message, content):
     global my_gold, eight_gold
