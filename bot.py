@@ -74,7 +74,7 @@ async def handle_auction(message, content):
 async def handle_raid(message, content):
     global count_4, count_last
 
-    if not content.startswith("/") or " " not in content:
+    if not content.startswith("/"):
         return False
 
     parts = content.split()
@@ -84,12 +84,13 @@ async def handle_raid(message, content):
 
     raid = parts[1]
 
+    if raid not in ["4막", "종막"]:
+        return False
+
     if raid == "4막":
         count_4 += 1
     elif raid == "종막":
         count_last += 1
-    else:
-        return False
 
     await message.channel.send(
         f"📊 진행 상황\n"
