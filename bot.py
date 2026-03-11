@@ -22,6 +22,7 @@ eight_gold = 0
 
 @bot.event
 async def on_ready():
+    await bot.tree.sync()
     print("봇 로그인 완료")
 
 
