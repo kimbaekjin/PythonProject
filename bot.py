@@ -183,12 +183,12 @@ async def handle_armory(message, content):
         else:
             msg += "• 보석 없음\n"
         msg += "\n"
-    print(len(msg))
+
     # 모든 캐릭터 합계 추가
     msg += f"===================================\n"
     msg += f"💰 전체 캐릭터 보석 합계: {total_all_characters:,} 골드\n"
     msg += "```"
-    print(total_all_characters)
+
     await message.channel.send(msg)
     return True
 
