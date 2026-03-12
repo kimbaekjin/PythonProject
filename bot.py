@@ -25,60 +25,62 @@ async def on_ready():
     await bot.tree.sync()
     print("봇 로그인 완료")
 
-
 @bot.event
 async def on_message(message):
     if message.author.bot:
         return
 
     content = message.content
-    print(f"DEBUG on_message called: {message.content} from {message.author}")
-    if await handle_engraving(message, content):
-        print("handle_engraving 호출")
+    print(f"DEBUG on_message called: {content} from {message.author}")
+
+    # 유각/보석 등 특정 명령어
+    if content.startswith("/유각"):
+        await handle_engraving(message, content)
         return
 
-    if await handle_raid(message, content):
-        print("handle_raid 호출")
+    if content == "/보석":
+        await handle_gem(message, content)
         return
 
-    if await handle_status(message, content):
-        print("handle_status 호출")
+    # 숫자 경매 명령: /숫자 4 또는 8
+    if re.match(r"^/\d+ (4|8)$", content):
+        await handle_auction(message, content)
         return
 
-    if await handle_misc(message, content):
-        print("handle_misc 호출")
+    # raid 관련 명령: /캐릭터이름 4막 또는 종막
+    if re.match(r"^/.+ (4막|종막)$", content):
+        await handle_raid(message, content)
         return
 
-    if await handle_reset(message, content):
-        print("handle_reset 호출")
+    # 나머지 단일 명령
+    if content == "/현황":
+        await handle_status(message, content)
         return
 
-    if await handle_split(message, content):
-        print("handle_split 호출")
+    if content == "/초기화":
+        await handle_reset(message, content)
         return
 
-    if await handle_spend(message, content):
-        print("handle_spend 호출")
+    if content == "/혜진":
+        await handle_misc(message, content)
         return
 
-    if await handle_gold_status(message, content):
-        print("handle_gold_status 호출")
+    if content == "/분배초기화":
+        await handle_gold_status(message, content)
         return
 
-    if await handle_split_reset(message, content):
-        print("handle_split_reset 호출")
+    if content == "/내놔":
+        await handle_split_reset(message, content)
         return
 
-    if await handle_gem(message, content):
-        print("handle_gem 호출")
+    # 숫자 단일 명령: /숫자 → 분배
+    if re.match(r"^/\d+$", content):
+        await handle_split(message, content)
         return
 
-    if await handle_armory(message, content):
-        print("handle_armory 호출")
-        return
-
-    if await handle_auction(message, content):
-        print("handle_auction 호출")
+    # 이름+금액 명령: /나 17000 등
+    if re.match(r"^/(나|에잇) \d+$", content):
+        await handle_spend(message, content)
         return
 
     return True
@@ -154,46 +156,39 @@ async def handle_armory(message, content):
                 "gems": gems
             })
 
-    # ---------------------------
     # 메시지 생성
-    # ---------------------------
     armory_list.sort(key=lambda x: x["level"], reverse=True)
     msg = "```css\n"
+    total_all_characters = 0  # ← 전체 캐릭터 보석 총합
+
     for c in armory_list:
         msg += f"[{c['class']}] {c['name']} ({c['level']}, 전투력 {c['combat_power']})\n"
         if c["gems"]:
             gem_counter = Counter()
-            # clean + bound info 처리
             for g in c["gems"]:
                 clean_name, is_bound = clean_gem_name(g)
                 gem_counter[(clean_name, is_bound)] += 1
 
             total_price = 0
             for (gem_name, is_bound), count in gem_counter.items():
-                # 메시지에는 귀속 여부 표시
                 display_name = f"{gem_name} (귀속)" if is_bound else gem_name
                 msg += f"• {display_name} x{count}\n"
 
-                # 가격 계산: 귀속이면 제외
                 if not is_bound:
-                    price = 0
-                    if gem_name in gem_prices_local:
-                        price = gem_prices_local[gem_name]
-                    elif "광휘" in gem_name:
-                        # 거래 가능한 광휘는 겁화 가격으로
-                        level = re.search(r"\d+레벨", gem_name).group()
-                        price = gem_prices_local.get(f"{level} 겁화", 0)
+                    price = gem_prices_local.get(gem_name, 0)
                     total_price += price * count
 
-                print(
-                    f"DEBUG {gem_name}, bound: {is_bound} -> price considered: {0 if is_bound else price}, count: {count}")
-
             msg += f"💰 보석 총 가격: {total_price:,} 골드\n"
+            total_all_characters += total_price  # ← 캐릭터 가격 합산
         else:
             msg += "• 보석 없음\n"
         msg += "\n"
+    print(len(msg))
+    # 모든 캐릭터 합계 추가
+    msg += f"===================================\n"
+    msg += f"💰 전체 캐릭터 보석 합계: {total_all_characters:,} 골드\n"
     msg += "```"
-
+    print(total_all_characters)
     await message.channel.send(msg)
     return True
 
