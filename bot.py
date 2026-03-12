@@ -1,8 +1,7 @@
-import discord
 from discord.ext import commands
-import aiohttp
-import math
+import aiohttp, math, discord, re
 from urllib.parse import quote
+from collections import Counter
 
 TOKEN = "MTQ4MDc5NjcwMjgzMDIzMTYxNQ.Gf4bFL.RDSEL4ze7nuAYPJmWZXOB70FmAa5a52UGP3x-w"
 
@@ -33,92 +32,108 @@ async def on_message(message):
         return
 
     content = message.content
-
+    print(f"DEBUG on_message called: {message.content} from {message.author}")
     if await handle_engraving(message, content):
-        return
-
-    if await handle_armory(message, content):
-        return
-
-    if await handle_split(message, content):
-        return
-
-    if await handle_spend(message, content):
-        return
-
-    if await handle_gold_status(message, content):
-        return
-
-    if await handle_split_reset(message, content):
-        return
-
-    if await handle_auction(message, content):
+        print("handle_engraving 호출")
         return
 
     if await handle_raid(message, content):
-        return
-
-    if await handle_gem(message, content):
+        print("handle_raid 호출")
         return
 
     if await handle_status(message, content):
-        return
-
-    if await handle_reset(message, content):
+        print("handle_status 호출")
         return
 
     if await handle_misc(message, content):
+        print("handle_misc 호출")
+        return
+
+    if await handle_reset(message, content):
+        print("handle_reset 호출")
+        return
+
+    if await handle_split(message, content):
+        print("handle_split 호출")
+        return
+
+    if await handle_spend(message, content):
+        print("handle_spend 호출")
+        return
+
+    if await handle_gold_status(message, content):
+        print("handle_gold_status 호출")
+        return
+
+    if await handle_split_reset(message, content):
+        print("handle_split_reset 호출")
+        return
+
+    if await handle_gem(message, content):
+        print("handle_gem 호출")
+        return
+
+    if await handle_armory(message, content):
+        print("handle_armory 호출")
+        return
+
+    if await handle_auction(message, content):
+        print("handle_auction 호출")
         return
 
     return True
 
 async def handle_armory(message, content):
-    # "/"로 시작하지 않거나 길이가 너무 짧으면 패스
     if not content.startswith("/"):
         return False
 
-    # 명령어에서 "/" 제거 → 캐릭터 이름
-    main_char = content[1:].strip()
-    if not main_char:
+    char_name = content[1:].strip()
+    if not char_name:
         return False
 
-    API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA"  # 실제 API_KEY 사용
+    API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA"
     headers = {
         "accept": "application/json",
         "authorization": f"bearer {API_KEY}"
     }
 
+    # ---------------------------
+    # 원정대 목록
+    # ---------------------------
+    siblings_url = f"https://developer-lostark.game.onstove.com/characters/{char_name}/siblings"
     armory_list = []
 
     async with aiohttp.ClientSession() as session:
-        # 원정대 목록 가져오기
-        siblings_url = f"https://developer-lostark.game.onstove.com/characters/{quote(main_char)}/siblings"
         async with session.get(siblings_url, headers=headers) as resp:
             if resp.status != 200:
                 await message.channel.send("원정대 API 조회 실패")
                 return True
             siblings_data = await resp.json()
 
-        # 각 캐릭터 profiles + 보석 조회
+        # ---------------------------
+        # 보석 가격 한 번만 가져오기
+        # ---------------------------
+        gem_prices_local = await get_gem_prices()
+
         for c in siblings_data:
             item_level = float(c["ItemAvgLevel"].replace(",", ""))
             if item_level < 1660:
                 continue
 
-            char_name = c["CharacterName"]
+            single_name = c["CharacterName"]
+            encoded = aiohttp.helpers.quote(single_name)
 
             # 프로필 조회
-            profile_url = f"https://developer-lostark.game.onstove.com/armories/characters/{quote(char_name)}/profiles"
+            profile_url = f"https://developer-lostark.game.onstove.com/armories/characters/{encoded}/profiles"
             async with session.get(profile_url, headers=headers) as resp2:
                 if resp2.status != 200:
                     continue
                 profile_data = await resp2.json()
-
                 char_class = profile_data.get("CharacterClassName", "Unknown")
                 combat_power = profile_data.get("CombatPower", 0)
 
-            # 보석 조회
-            gem_url = f"https://developer-lostark.game.onstove.com/armories/characters/{quote(char_name)}/gems"
+            # 장착 보석 조회
+            gem_url = f"https://developer-lostark.game.onstove.com/armories/characters/{encoded}/gems"
             async with session.get(gem_url, headers=headers) as resp3:
                 if resp3.status != 200:
                     gems = []
@@ -127,28 +142,113 @@ async def handle_armory(message, content):
                     gems_raw = gem_data.get("Gems")
                     if not isinstance(gems_raw, list):
                         gems_raw = []
-                    gems = [re.sub(r"<.*?>", "", g.get("Name")).strip()
+                    # HTML 제거 + 공백 제거
+                    gems = [re.sub(r"<.*?>", "", g.get("Name", "")).strip().replace(" ", "")
                             for g in gems_raw if g.get("Name")]
 
             armory_list.append({
-                "name": char_name,
+                "name": single_name,
                 "class": char_class,
                 "level": item_level,
                 "combat_power": combat_power,
                 "gems": gems
             })
 
-    # 아이템 레벨 내림차순
-    armory_list.sort(key=lambda x: x["level"], reverse=True)
-
+    # ---------------------------
     # 메시지 생성
-    msg = ""
+    # ---------------------------
+    armory_list.sort(key=lambda x: x["level"], reverse=True)
+    msg = "```css\n"
     for c in armory_list:
-        gem_str = ", ".join(c["gems"]) if c["gems"] else "보석 없음"
-        msg += f"[{c['class']}] {c['name']} ({c['level']}, 전투력 {c['combat_power']}), 보석 : {gem_str}\n"
+        msg += f"[{c['class']}] {c['name']} ({c['level']}, 전투력 {c['combat_power']})\n"
+        if c["gems"]:
+            gem_counter = Counter()
+            # clean + bound info 처리
+            for g in c["gems"]:
+                clean_name, is_bound = clean_gem_name(g)
+                gem_counter[(clean_name, is_bound)] += 1
+
+            total_price = 0
+            for (gem_name, is_bound), count in gem_counter.items():
+                # 메시지에는 귀속 여부 표시
+                display_name = f"{gem_name} (귀속)" if is_bound else gem_name
+                msg += f"• {display_name} x{count}\n"
+
+                # 가격 계산: 귀속이면 제외
+                if not is_bound:
+                    price = 0
+                    if gem_name in gem_prices_local:
+                        price = gem_prices_local[gem_name]
+                    elif "광휘" in gem_name:
+                        # 거래 가능한 광휘는 겁화 가격으로
+                        level = re.search(r"\d+레벨", gem_name).group()
+                        price = gem_prices_local.get(f"{level} 겁화", 0)
+                    total_price += price * count
+
+                print(
+                    f"DEBUG {gem_name}, bound: {is_bound} -> price considered: {0 if is_bound else price}, count: {count}")
+
+            msg += f"💰 보석 총 가격: {total_price:,} 골드\n"
+        else:
+            msg += "• 보석 없음\n"
+        msg += "\n"
+    msg += "```"
 
     await message.channel.send(msg)
     return True
+
+def clean_gem_name(name: str) -> str:
+    """보석 이름 정리 및 귀속 여부 판단"""
+    is_bound = "(귀속)" in name
+    name_clean = name.replace("(귀속)", "").strip()
+    match = re.search(r"(\d+레벨)\s*(겁화|작열|광휘)", name_clean)
+    if match:
+        return match.group(1) + " " + match.group(2), is_bound
+    return name_clean, is_bound
+
+# 전역 변수
+async def get_gem_prices():
+    url = "https://developer-lostark.game.onstove.com/auctions/items"
+    headers = {
+        "accept": "application/json",
+        "authorization": "bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA",
+        "content-type": "application/json"
+    }
+
+    gems = ["6레벨 겁화", "6레벨 작열", "7레벨 겁화", "7레벨 작열",
+            "8레벨 겁화", "8레벨 작열", "9레벨 겁화", "9레벨 작열",
+            "10레벨 겁화", "10레벨 작열"]
+
+    gem_prices_local = {}
+
+    async with aiohttp.ClientSession() as session:
+        for gem in gems:
+            payload = {
+                "ItemLevelMin": 0,
+                "ItemLevelMax": 1800,
+                "CategoryCode": 210000,
+                "ItemTier": 4,
+                "ItemName": gem,
+                "PageNo": 1,
+                "Sort": "BUY_PRICE",
+                "SortCondition": "ASC"
+            }
+
+            async with session.post(url, headers=headers, json=payload) as resp:
+                if resp.status != 200:
+                    gem_prices_local[gem] = 0
+                    continue
+                data = await resp.json()
+                items = data.get("Items", [])
+                cheapest_price = None
+                for item in items:
+                    price = item["AuctionInfo"]["BuyPrice"]
+                    if price and (cheapest_price is None or price < price):
+                        cheapest_price = price
+                gem_prices_local[gem] = cheapest_price or 0
+
+    print(gem_prices_local)
+    return gem_prices_local
 
 async def handle_gem(message, content):
     if content != "/보석":
@@ -162,7 +262,7 @@ async def handle_gem(message, content):
         "content-type": "application/json"
     }
 
-    gems = ["8레벨 겁화", "8레벨 작열", "9레벨 겁화", "9레벨 작열", "10레벨 겁화", "10레벨 작열"]
+    gems = ["6레벨 겁화", "6레벨 작열", "7레벨 겁화", "7레벨 작열", "8레벨 겁화", "8레벨 작열", "9레벨 겁화", "9레벨 작열", "10레벨 겁화", "10레벨 작열"]
 
     result_msg = "💎 보석 시세 (최저가)\n\n"
 
