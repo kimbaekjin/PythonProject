@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
+import aiohttp
 import math
 
 TOKEN = "MTQ4MDc5NjcwMjgzMDIzMTYxNQ.Gf4bFL.RDSEL4ze7nuAYPJmWZXOB70FmAa5a52UGP3x-w"
@@ -51,6 +51,9 @@ async def on_message(message):
     if await handle_raid(message, content):
         return
 
+    if await handle_gem(message, content):
+        return
+
     if await handle_status(message, content):
         return
 
@@ -59,6 +62,62 @@ async def on_message(message):
 
     if await handle_misc(message, content):
         return
+
+    return True
+
+async def handle_gem(message, content):
+    if content != "/보석":
+        return False
+
+    url = "https://developer-lostark.game.onstove.com/auctions/items"
+
+    headers = {
+        "accept": "application/json",
+        "authorization": "bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA",
+        "content-type": "application/json"
+    }
+
+    gems = ["8레벨 겁화", "8레벨 작열", "9레벨 겁화", "9레벨 작열", "10레벨 겁화", "10레벨 작열"]
+
+    result_msg = "💎 보석 시세 (최저가)\n\n"
+
+    async with aiohttp.ClientSession() as session:
+        for gem in gems:
+
+            payload = {
+                "ItemLevelMin": 0,
+                "ItemLevelMax": 1800,
+                "CategoryCode": 210000,
+                "ItemTier": 4,
+                "ItemName": gem,
+                "PageNo": 1,
+                "Sort": "BUY_PRICE",
+                "SortCondition": "ASC"
+            }
+
+            async with session.post(url, headers=headers, json=payload) as resp:
+
+                if resp.status != 200:
+                    result_msg += f"{gem} : 조회 실패\n"
+                    continue
+
+                data = await resp.json()
+                items = data.get("Items", [])
+
+                cheapest_price = None
+
+                for item in items:
+                    price = item["AuctionInfo"]["BuyPrice"]
+
+                    if price and (cheapest_price is None or price < cheapest_price):
+                        cheapest_price = price
+
+                if cheapest_price:
+                    result_msg += f"{gem} : {cheapest_price:,} 골드\n"
+                else:
+                    result_msg += f"{gem} : 매물 없음\n"
+
+    await message.channel.send(result_msg)
 
     return True
 
