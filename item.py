@@ -10,7 +10,7 @@ headers = {
 
 all_items = []
 
-for page in range(1, 3):  # 1~10 페이지
+for page in range(1,3):
 
     payload = {
         "CategoryCode": 40000,
@@ -20,12 +20,24 @@ for page in range(1, 3):  # 1~10 페이지
     }
 
     response = requests.post(url, headers=headers, json=payload)
+
+    print("Status:", response.status_code)
+
+    if response.status_code != 200:
+        print("Response:", response.text)
+        continue
+
     data = response.json()
 
     items = data.get("Items", [])
     all_items.extend(items)
 
-# 결과 출력
 for item in all_items:
+
     name = item["Name"].replace("유물 ", "").replace(" 각인서", "")
-    print(f"{name} : {item['CurrentMinPrice']}g")
+    price = item.get("CurrentMinPrice")
+
+    if price:
+        print(f"{name} : {price:,}g")
+    else:
+        print(f"{name} : 매물 없음")

@@ -33,6 +33,9 @@ async def on_message(message):
 
     content = message.content
 
+    if await handle_engraving(message, content):
+        return
+
     if await handle_split(message, content):
         return
 
@@ -58,9 +61,6 @@ async def on_message(message):
         return
 
     if await handle_reset(message, content):
-        return
-
-    if await handle_engraving(message, content):
         return
 
     if await handle_misc(message, content):
