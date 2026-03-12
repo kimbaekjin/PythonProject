@@ -72,7 +72,7 @@ async def handle_gem(message, content):
     if content != "/보석":
         return False
 
-    url = "https://developer-lostark.game.onstove.com/auctions/items"
+    url = "https://developer-lostark.game.onstove.com/markets/items"
 
     headers = {
         "accept": "application/json",
