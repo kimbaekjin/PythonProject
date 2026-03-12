@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import aiohttp
 import math
+from urllib.parse import quote
 
 TOKEN = "MTQ4MDc5NjcwMjgzMDIzMTYxNQ.Gf4bFL.RDSEL4ze7nuAYPJmWZXOB70FmAa5a52UGP3x-w"
 
@@ -77,39 +78,37 @@ async def handle_armory(message, content):
         return False
 
     # 명령어에서 "/" 제거 → 캐릭터 이름
-    char_name = content[1:].strip()
-    if not char_name:
+    main_char = content[1:].strip()
+    if not main_char:
         return False
 
-    API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA"
-    siblings_url = f"https://developer-lostark.game.onstove.com/characters/{char_name}/siblings"
+    API_KEY = "bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA"  # 실제 API_KEY 사용
     headers = {
         "accept": "application/json",
         "authorization": f"bearer {API_KEY}"
     }
 
-    import aiohttp
-
     armory_list = []
 
     async with aiohttp.ClientSession() as session:
         # 원정대 목록 가져오기
+        siblings_url = f"https://developer-lostark.game.onstove.com/characters/{quote(main_char)}/siblings"
         async with session.get(siblings_url, headers=headers) as resp:
             if resp.status != 200:
                 await message.channel.send("원정대 API 조회 실패")
                 return True
             siblings_data = await resp.json()
 
-        # 각 캐릭터 profiles 조회
+        # 각 캐릭터 profiles + 보석 조회
         for c in siblings_data:
             item_level = float(c["ItemAvgLevel"].replace(",", ""))
             if item_level < 1660:
                 continue
 
-            single_name = c["CharacterName"]
-            encoded = aiohttp.helpers.quote(single_name)
-            profile_url = f"https://developer-lostark.game.onstove.com/armories/characters/{encoded}/profiles"
+            char_name = c["CharacterName"]
 
+            # 프로필 조회
+            profile_url = f"https://developer-lostark.game.onstove.com/armories/characters/{quote(char_name)}/profiles"
             async with session.get(profile_url, headers=headers) as resp2:
                 if resp2.status != 200:
                     continue
@@ -118,20 +117,35 @@ async def handle_armory(message, content):
                 char_class = profile_data.get("CharacterClassName", "Unknown")
                 combat_power = profile_data.get("CombatPower", 0)
 
-                armory_list.append({
-                    "name": single_name,
-                    "class": char_class,
-                    "level": item_level,
-                    "combat_power": combat_power
-                })
+            # 보석 조회
+            gem_url = f"https://developer-lostark.game.onstove.com/armories/characters/{quote(char_name)}/gems"
+            async with session.get(gem_url, headers=headers) as resp3:
+                if resp3.status != 200:
+                    gems = []
+                else:
+                    gem_data = await resp3.json()
+                    gems_raw = gem_data.get("Gems")
+                    if not isinstance(gems_raw, list):
+                        gems_raw = []
+                    gems = [re.sub(r"<.*?>", "", g.get("Name")).strip()
+                            for g in gems_raw if g.get("Name")]
 
-    # 아이템 레벨 내림차순 정렬
+            armory_list.append({
+                "name": char_name,
+                "class": char_class,
+                "level": item_level,
+                "combat_power": combat_power,
+                "gems": gems
+            })
+
+    # 아이템 레벨 내림차순
     armory_list.sort(key=lambda x: x["level"], reverse=True)
 
     # 메시지 생성
     msg = ""
     for c in armory_list:
-        msg += f"[{c['class']}] {c['name']} ({c['level']}, 전투력 {c['combat_power']})\n"
+        gem_str = ", ".join(c["gems"]) if c["gems"] else "보석 없음"
+        msg += f"[{c['class']}] {c['name']} ({c['level']}, 전투력 {c['combat_power']}), 보석 : {gem_str}\n"
 
     await message.channel.send(msg)
     return True
