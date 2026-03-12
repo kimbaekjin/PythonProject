@@ -36,6 +36,9 @@ async def on_message(message):
     if await handle_engraving(message, content):
         return
 
+    if await handle_armory(message, content):
+        return
+
     if await handle_split(message, content):
         return
 
@@ -66,6 +69,73 @@ async def on_message(message):
     if await handle_misc(message, content):
         return
 
+    return True
+
+async def handle_armory(message, content):
+    # "/"로 시작하지 않거나 길이가 너무 짧으면 패스
+    if not content.startswith("/"):
+        return False
+
+    # 명령어에서 "/" 제거 → 캐릭터 이름
+    char_name = content[1:].strip()
+    if not char_name:
+        return False
+
+    await message.channel.send(f"🔎 {char_name} 원정대 조회 중... 잠시만요")
+
+    API_KEY = "YOUR_API_KEY"
+    siblings_url = f"https://developer-lostark.game.onstove.com/characters/{char_name}/siblings"
+    headers = {
+        "accept": "application/json",
+        "authorization": f"bearer {API_KEY}"
+    }
+
+    import aiohttp
+
+    armory_list = []
+
+    async with aiohttp.ClientSession() as session:
+        # 원정대 목록 가져오기
+        async with session.get(siblings_url, headers=headers) as resp:
+            if resp.status != 200:
+                await message.channel.send("원정대 API 조회 실패")
+                return True
+            siblings_data = await resp.json()
+
+        # 각 캐릭터 profiles 조회
+        for c in siblings_data:
+            item_level = float(c["ItemAvgLevel"].replace(",", ""))
+            if item_level < 1660:
+                continue
+
+            single_name = c["CharacterName"]
+            encoded = aiohttp.helpers.quote(single_name)
+            profile_url = f"https://developer-lostark.game.onstove.com/armories/characters/{encoded}/profiles"
+
+            async with session.get(profile_url, headers=headers) as resp2:
+                if resp2.status != 200:
+                    continue
+                profile_data = await resp2.json()
+
+                char_class = profile_data.get("CharacterClassName", "Unknown")
+                combat_power = profile_data.get("CombatPower", 0)
+
+                armory_list.append({
+                    "name": single_name,
+                    "class": char_class,
+                    "level": item_level,
+                    "combat_power": combat_power
+                })
+
+    # 아이템 레벨 내림차순 정렬
+    armory_list.sort(key=lambda x: x["level"], reverse=True)
+
+    # 메시지 생성
+    msg = ""
+    for c in armory_list:
+        msg += f"[{c['class']}] {c['name']} ({c['level']}, 전투력 {c['combat_power']})\n"
+
+    await message.channel.send(msg)
     return True
 
 async def handle_gem(message, content):
