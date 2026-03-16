@@ -767,12 +767,20 @@ async def handle_status(message, content):
     if content != "/현황":
         return False
 
-    await message.channel.send(
-        f"📊 현재 진행\n"
-        f"4막 : {count_4}/{TARGET_4}\n"
-        f"종막 : {count_last}/{TARGET_LAST}"
-    )
+    # 진행률 바 함수
+    def progress_bar(current, total):
+        filled = "🟩" * current
+        empty = "⬜" * (total - current)
+        return f"{filled}{empty} {current}/{total}"
 
+    embed = discord.Embed(
+        title="🛡️ 이번달 레이드 진행 현황",
+        color=0x00ff00
+    )
+    embed.add_field(name="4막", value=progress_bar(count_4, TARGET_4), inline=True)
+    embed.add_field(name="종막", value=progress_bar(count_last, TARGET_LAST), inline=True)
+
+    await message.channel.send(embed=embed)
     return True
 
 
