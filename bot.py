@@ -619,6 +619,7 @@ async def handle_split(message, content):
 
 # 경매 계산
 async def handle_auction(message, content):
+
     if not content.startswith("/"):
         return False
 
@@ -636,10 +637,28 @@ async def handle_auction(message, content):
     if party not in [4, 8]:
         return False
 
-    bid = (price - 500) * (party - 1) / party / 1.025
-    result = math.floor(bid)
+    # 손익분기점
+    break_even = price * 0.95 * (party - 1) / party
+    break_even_share = break_even / (party - 1)
+    break_even_profit = price * 0.95 - break_even
 
-    await message.channel.send(result)
+    # 입찰 적정가
+    bid = break_even / 1.1
+    bid_share = bid / (party - 1)
+    bid_profit = price * 0.95 - bid
+
+    await message.channel.send(
+        f"💰 {party}인 경매 계산\n\n"
+        f"손익분기점\n"
+        f"{int(break_even):,}\n"
+        f"분배금 {int(break_even_share):,}\n"
+        f"판매차익 {int(break_even_profit):,}\n\n"
+        f"입찰적정가\n"
+        f"{int(bid):,}\n"
+        f"분배금 {int(bid_share):,}\n"
+        f"판매차익 {int(bid_profit):,}"
+    )
+
     return True
 
 
