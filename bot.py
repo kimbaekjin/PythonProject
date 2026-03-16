@@ -75,6 +75,10 @@ async def on_message(message):
     content = message.content
     print(f"DEBUG on_message called: {content} from {message.author}")
 
+    if content == "/남은시간":
+        await handle_remaining_time(message, content)
+        return
+
     if content.startswith("/치적 "):
         await handle_crit(message, content)
         return
@@ -225,6 +229,28 @@ async def handle_account_status(message, content):
         return False
 
     await send_status(message.channel)
+    return True
+
+async def handle_remaining_time(message, content):
+    if content != "/남은시간":
+        return False
+
+    now = datetime.datetime.now()
+    # start_date는 데이터 파일 기준으로 이미 존재
+    reset_datetime = datetime.datetime.combine(start_date + datetime.timedelta(days=30), datetime.time(0, 0))
+
+    remaining = reset_datetime - now
+    if remaining.total_seconds() < 0:
+        remaining = datetime.timedelta(seconds=0)
+
+    days = remaining.days
+    hours, rem = divmod(remaining.seconds, 3600)
+    minutes, seconds = divmod(rem, 60)
+
+    await message.channel.send(
+        f"⏳ 월간 정산까지 남은 시간: {days}일 {hours}시간 {minutes}분 {seconds}초"
+    )
+
     return True
 
 async def monthly_check_loop():
