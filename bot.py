@@ -4,6 +4,7 @@ from urllib.parse import quote
 from collections import Counter
 import asyncio
 import datetime, json,os
+from critical import *
 
 TOKEN = "MTQ4MDc5NjcwMjgzMDIzMTYxNQ.Gf4bFL.RDSEL4ze7nuAYPJmWZXOB70FmAa5a52UGP3x-w"
 
@@ -74,6 +75,10 @@ async def on_message(message):
     content = message.content
     print(f"DEBUG on_message called: {content} from {message.author}")
 
+    if content.startswith("/치적 "):
+        await handle_crit(message, content)
+        return
+
     # 유각/보석 등 특정 명령어
     if content.startswith("/유각"):
         await handle_engraving(message, content)
@@ -142,6 +147,60 @@ async def on_message(message):
         return
 
     return True
+
+async def handle_crit(message, content):
+    parts = content.split()
+    if len(parts) != 2:
+        await message.channel.send("❌ 사용법: /치적 캐릭터이름")
+        return False
+
+    char_name = parts[1]
+
+    # 기존 calculate_crit_rate 로직 활용
+    try:
+        char_class = get_character_class(char_name)
+        crit_stat = get_crit_stat(char_name)
+        stat_crit = crit_from_stat(crit_stat)
+        engraving_crit = get_engraving_crit(char_name)
+        ark_data = get_arkpassive_data(char_name)
+        arkpassive_crit = get_arkpassive_crit(ark_data, char_class)
+        accessory_crit, bracelet_crit = get_accessory_bracelet_crit(char_name)
+
+        total = stat_crit + engraving_crit + arkpassive_crit + bracelet_crit + accessory_crit
+
+        # 클래스별 치적 보너스
+        if char_class in ["건슬링어","기상술사","데빌헌터","스트라이커","배틀마스터","아르카나"]:
+            total += 10
+            msg = (
+                f"📊 {char_name} ({char_class}) 치명률\n"
+                f"시너지: 10%\n"
+                f"스탯 치적: {round(stat_crit, 2)}%\n"
+                f"각인 치적: {engraving_crit}%\n"
+                f"팔찌 치적: {bracelet_crit}%\n"
+                f"악세 치적: {round(accessory_crit, 2)}%\n"
+                f"아크패시브 치적: {arkpassive_crit}%\n"
+                f"총 치적: {round(total, 2)}%"
+            )
+            await message.channel.send(msg)
+            return True
+
+
+        msg = (
+            f"📊 {char_name} ({char_class}) 치명률\n"
+            f"스탯 치적: {round(stat_crit,1)}%\n"
+            f"각인 치적: {engraving_crit}%\n"
+            f"팔찌 치적: {bracelet_crit}%\n"
+            f"악세 치적: {round(accessory_crit,1)}%\n"
+            f"아크패시브 치적: {arkpassive_crit}%\n"
+            f"총 치적: {round(total,1)}%"
+        )
+
+        await message.channel.send(msg)
+        return True
+
+    except Exception as e:
+        await message.channel.send(f"❌ 치적 계산 중 오류 발생: {e}")
+        return False
 
 async def handle_account_reset(message, content):
 
