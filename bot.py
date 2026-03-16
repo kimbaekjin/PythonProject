@@ -650,8 +650,8 @@ async def handle_auction(message, content):
     break_even_profit = price * 0.95 - break_even
 
     # 입찰 적정가
-    bid = break_even / 1.1
-    bid_share = bid / (party - 1)
+    bid = price / 1.1
+    bid_share = price / (party - 1)
     bid_profit = price * 0.95 - bid
 
     await message.channel.send(
