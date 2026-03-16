@@ -604,7 +604,7 @@ async def handle_split(message, content):
 
     gold = int(cmd)
 
-    split = int(gold * 0.95 / 2)
+    split = int(gold * 0.95 / 4)
 
     my_gold += split
     eight_gold += split
