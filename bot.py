@@ -2,6 +2,8 @@ from discord.ext import commands
 import aiohttp, math, discord, re
 from urllib.parse import quote
 from collections import Counter
+import asyncio
+import datetime, json,os
 
 TOKEN = "MTQ4MDc5NjcwMjgzMDIzMTYxNQ.Gf4bFL.RDSEL4ze7nuAYPJmWZXOB70FmAa5a52UGP3x-w"
 
@@ -9,6 +11,44 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
+
+TARGET_CHANNEL = 1481571646832775169
+
+targets = {
+    "본계": 36,
+    "스카": 18,
+    "도화가": 18,
+    "리퍼": 30
+}
+
+progress = {
+    "본계": 0,
+    "스카": 0,
+    "도화가": 0,
+    "리퍼": 0
+}
+
+DATA_FILE = "account_data.json"
+
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        data = {
+            "start_date": str(datetime.date.today()),
+            "progress": {k: 0 for k in targets}
+        }
+        save_data(data)
+        return data
+
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+data = load_data()
+progress = data["progress"]
+start_date = datetime.date.fromisoformat(data["start_date"])
 
 count_4 = 0
 count_last = 0
@@ -23,6 +63,7 @@ eight_gold = 0
 @bot.event
 async def on_ready():
     await bot.tree.sync()
+    bot.loop.create_task(monthly_check_loop())
     print("봇 로그인 완료")
 
 @bot.event
@@ -83,7 +124,84 @@ async def on_message(message):
         await handle_spend(message, content)
         return
 
+    if message.channel.id == TARGET_CHANNEL:
+        if re.match(r"^/(본계|스카|도화가|리퍼) \d+$", content):
+            await handle_account(message, content)
+            return
+
+        if content == "/쌀먹초기화":
+            await handle_account_reset(message, content)
+            return
+
+        if content == "/쌀먹현황":
+            await handle_account_status(message, content)
+            return
+    
+    if content.startswith("/") and " " not in content:
+        await handle_armory(message, content)
+        return
+
     return True
+
+async def handle_account_reset(message, content):
+
+    if content != "/쌀먹초기화":
+        return False
+
+    for k in progress:
+        progress[k] = 0
+
+    data["progress"] = progress
+    data["start_date"] = str(datetime.date.today())
+
+    save_data(data)
+
+    await message.channel.send("🔄 쌀먹 현황이 초기화되었습니다.")
+
+    return True
+
+async def handle_account_status(message, content):
+
+    if content != "/쌀먹현황":
+        return False
+
+    await send_status(message.channel)
+    return True
+
+async def monthly_check_loop():
+
+    await bot.wait_until_ready()
+
+    warned = False
+
+    while not bot.is_closed():
+
+        now = datetime.date.today()
+
+        reset_date = start_date + datetime.timedelta(days=30)
+        warn_date = reset_date - datetime.timedelta(days=7)
+
+        channel = bot.get_channel(TARGET_CHANNEL)
+
+        if now == warn_date and not warned:
+            await channel.send("⚠️ 일주일 후 월간 정산이 초기화됩니다.")
+            warned = True
+
+        if now >= reset_date:
+            for k in progress:
+                progress[k] = 0
+
+            new_start = now
+
+            data["progress"] = progress
+            data["start_date"] = str(new_start)
+            save_data(data)
+
+            warned = False
+
+            await channel.send("🔄 월간 정산이 초기화되었습니다.")
+
+        await asyncio.sleep(86400)
 
 async def handle_armory(message, content):
     if not content.startswith("/"):
@@ -156,37 +274,48 @@ async def handle_armory(message, content):
                 "gems": gems
             })
 
+    # ---------------------------
     # 메시지 생성
+    # ---------------------------
     armory_list.sort(key=lambda x: x["level"], reverse=True)
+    grand_total = 0
     msg = "```css\n"
-    total_all_characters = 0  # ← 전체 캐릭터 보석 총합
-
     for c in armory_list:
         msg += f"[{c['class']}] {c['name']} ({c['level']}, 전투력 {c['combat_power']})\n"
         if c["gems"]:
             gem_counter = Counter()
+            # clean + bound info 처리
             for g in c["gems"]:
                 clean_name, is_bound = clean_gem_name(g)
                 gem_counter[(clean_name, is_bound)] += 1
 
             total_price = 0
             for (gem_name, is_bound), count in gem_counter.items():
+                # 메시지에는 귀속 여부 표시
                 display_name = f"{gem_name} (귀속)" if is_bound else gem_name
                 msg += f"• {display_name} x{count}\n"
 
+                # 가격 계산: 귀속이면 제외
                 if not is_bound:
-                    price = gem_prices_local.get(gem_name, 0)
+                    price = 0
+                    if gem_name in gem_prices_local:
+                        price = gem_prices_local[gem_name]
+                    elif "광휘" in gem_name:
+                        # 거래 가능한 광휘는 겁화 가격으로
+                        level = re.search(r"\d+레벨", gem_name).group()
+                        price = gem_prices_local.get(f"{level} 겁화", 0)
                     total_price += price * count
 
+                print(
+                    f"DEBUG {gem_name}, bound: {is_bound} -> price considered: {0 if is_bound else price}, count: {count}")
+
             msg += f"💰 보석 총 가격: {total_price:,} 골드\n"
-            total_all_characters += total_price  # ← 캐릭터 가격 합산
+            grand_total += total_price
         else:
             msg += "• 보석 없음\n"
         msg += "\n"
-
-    # 모든 캐릭터 합계 추가
-    msg += f"===================================\n"
-    msg += f"💰 전체 캐릭터 보석 합계: {total_all_characters:,} 골드\n"
+    msg += "\n====================\n"
+    msg += f"🔥 원정대 총 보석 가격: {grand_total:,} 골드\n"
     msg += "```"
 
     await message.channel.send(msg)
@@ -330,6 +459,25 @@ async def handle_split_reset(message, content):
 
     return True
 
+async def send_status(channel):
+
+    msg = "📊 이번달 진행 상황\n\n"
+
+    total_now = 0
+    total_target = sum(targets.values())
+
+    for acc in targets:
+        current = progress[acc]
+        target = targets[acc]
+        remain = target - current
+        total_now += current
+
+        msg += f"{acc} : {current}/{target} (남음 {remain})\n"
+
+    msg += f"\n💰 총합 : {total_now}/{total_target}"
+
+    await channel.send(msg)
+
 async def handle_engraving(message, content):
 
     if content != "/유각":
@@ -378,6 +526,30 @@ async def handle_engraving(message, content):
 
     await message.channel.send(result_msg)
 
+    return True
+
+async def handle_account(message, content):
+
+    parts = content.split()
+    if len(parts) != 2:
+        return False
+
+    name = parts[0][1:]
+    amount = parts[1]
+
+    if name not in targets:
+        return False
+
+    if not amount.isdigit():
+        return False
+
+    amount = int(amount)
+
+    progress[name] += amount
+    data["progress"] = progress
+    save_data(data)
+
+    await send_status(message.channel)
     return True
 
 async def handle_spend(message, content):
