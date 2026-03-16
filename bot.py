@@ -637,6 +637,13 @@ async def handle_auction(message, content):
     if party not in [4, 8]:
         return False
 
+    if party == 4:
+        direct_price = price * 0.75
+    else:
+        direct_price = price * 0.875
+
+    direct_share = price / (party - 1)
+
     # 손익분기점
     break_even = price * 0.95 * (party - 1) / party
     break_even_share = break_even / (party - 1)
@@ -649,6 +656,9 @@ async def handle_auction(message, content):
 
     await message.channel.send(
         f"💰 {party}인 경매 계산\n\n"
+        f"직접사용\n"
+        f"입찰적정가{int(direct_share):,}\n"
+        f"분배금 {int(direct_share):,}\n\n"
         f"손익분기점\n"
         f"{int(break_even):,}\n"
         f"분배금 {int(break_even_share):,}\n"
