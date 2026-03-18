@@ -35,13 +35,26 @@ def load_data():
     if not os.path.exists(DATA_FILE):
         data = {
             "start_date": str(datetime.date.today()),
-            "progress": {k: 0 for k in targets}
+            "progress": {k: 0 for k in targets},
+            "gold": {
+                "my_gold": 0,
+                "eight_gold": 0
+            }
         }
         save_data(data)
         return data
 
     with open(DATA_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+
+    # 👉 기존 파일에 gold 없을 경우 대비
+    if "gold" not in data:
+        data["gold"] = {
+            "my_gold": 0,
+            "eight_gold": 0
+        }
+
+    return data
 
 def save_data(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
@@ -50,6 +63,9 @@ def save_data(data):
 data = load_data()
 progress = data["progress"]
 start_date = datetime.date.fromisoformat(data["start_date"])
+
+my_gold = data["gold"]["my_gold"]
+eight_gold = data["gold"]["eight_gold"]
 
 count_4 = 0
 count_last = 0
@@ -701,6 +717,11 @@ async def handle_split(message, content):
 
     my_gold += split
     eight_gold += split
+
+    data["gold"]["my_gold"] = my_gold
+    data["gold"]["eight_gold"] = eight_gold
+
+    save_data(data)
 
     await message.channel.send(
         f"💰 분배 결과\n"
