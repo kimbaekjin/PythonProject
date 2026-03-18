@@ -44,7 +44,7 @@ def crit_from_stat(crit_stat):
 def get_arkpassive_data(name):
 
     url = f"https://developer-lostark.game.onstove.com/armories/characters/{name}/arkpassive"
-
+    
     res = requests.get(url, headers=headers)
 
     if res.status_code != 200:

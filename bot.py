@@ -688,8 +688,16 @@ async def handle_split(message, content):
         return False
 
     gold = int(cmd)
-
-    split = int(gold * 0.95 / 4)
+    if gold > 150000:
+        split = int(gold * 0.95 / 4) - 2000
+    elif gold > 100000:
+        split = int(gold * 0.95 / 4) - 1500
+    elif gold > 50000:
+        split = int(gold * 0.95 / 4) - 1000
+    elif gold > 20000:
+        split = int(gold * 0.95 / 4) - 500
+    else:
+        split = int(gold * 0.95 / 4)
 
     my_gold += split
     eight_gold += split
