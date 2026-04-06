@@ -733,6 +733,7 @@ async def handle_split(message, content):
 
 # 경매 계산
 async def handle_auction(message, content):
+    global my_gold, eight_gold
 
     if not content.startswith("/"):
         return False
@@ -748,9 +749,30 @@ async def handle_auction(message, content):
     except:
         return False
 
-    if party not in [4, 8]:
+    if party not in [3, 4, 8]:
         return False
 
+    if party == 3:
+        split = int(price * 0.95 / 3)
+
+        my_gold += split
+        eight_gold += split
+
+        data["gold"]["my_gold"] = my_gold
+        data["gold"]["eight_gold"] = eight_gold
+
+        save_data(data)
+
+        await message.channel.send(
+            f"💰 3인 분배 결과\n"
+            f"1인당 : {split:,} 골드\n\n"
+            f"나 : {my_gold}\n"
+            f"에잇 : {eight_gold}"
+        )
+
+        return True
+
+    # 기존 로직 유지
     if party == 4:
         direct_price = price * 0.75
     else:
