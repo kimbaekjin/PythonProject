@@ -756,10 +756,8 @@ async def handle_auction(message, content):
         split = int(price * 0.95 / 3)
 
         my_gold += split
-        eight_gold += split
 
         data["gold"]["my_gold"] = my_gold
-        data["gold"]["eight_gold"] = eight_gold
 
         save_data(data)
 
@@ -767,7 +765,6 @@ async def handle_auction(message, content):
             f"💰 3인 분배 결과\n"
             f"1인당 : {split:,} 골드\n\n"
             f"나 : {my_gold}\n"
-            f"에잇 : {eight_gold}"
         )
 
         return True
