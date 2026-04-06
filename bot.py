@@ -109,7 +109,7 @@ async def on_message(message):
         return
 
     # 숫자 경매 명령: /숫자 4 또는 8
-    if re.match(r"^/\d+ (4|8)$", content):
+    if re.match(r"^/\d+ (3|4|8)$", content):
         await handle_auction(message, content)
         return
 
