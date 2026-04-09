@@ -3,18 +3,90 @@ import aiohttp, math, discord, re
 from urllib.parse import quote
 from collections import Counter
 import asyncio
-import datetime, json,os
+import datetime, json, os
+from zoneinfo import ZoneInfo
 from critical import *
 
-TOKEN = "MTQ4MDc5NjcwMjgzMDIzMTYxNQ.Gf4bFL.RDSEL4ze7nuAYPJmWZXOB70FmAa5a52UGP3x-w"
+# =========================
+# 환경변수
+# =========================
+TOKEN = os.getenv("DISCORD_TOKEN")
+LOSTARK_API_KEY = os.getenv("LOSTARK_API_KEY")
 
+if not TOKEN:
+    raise ValueError("DISCORD_TOKEN 환경변수가 없습니다.")
+
+if not LOSTARK_API_KEY:
+    raise ValueError("LOSTARK_API_KEY 환경변수가 없습니다.")
+
+# =========================
+# 디스코드 봇 기본 설정
+# =========================
 intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
 
 TARGET_CHANNEL = 1481571646832775169
+KST = ZoneInfo("Asia/Seoul")
 
+# =========================
+# 요일별 레이드 일정
+# =========================
+RAID_SCHEDULE = {
+    "월요일": [],
+
+    "화요일": [
+        ["종노버스", "서머너", "나혜찌니"],
+        ["종노버스", "스윽", "혜진이"],
+    ],
+
+    "수요일": [
+        ["4막하드", "배시종함", "호양계란주깨"],
+        ["종노버스", "배시종함", "호양계란주깨"],
+        ["세르카하드", "리퍼님", "호양계란주깨"],
+        ["세르카하드", "바훈", "적묘법"],
+        ["종노버스", "바훈", "이플립"],
+        ["종노버스", "리퍼님", "콩당콩설"],
+    ],
+
+    "목요일": [
+        ["세르카노말", "이겹필", "도빵울", "암거나"],
+        ["4막노말버스", "정겹필", "이플립", "블레이드"],
+        ["세르카 노말", "강겹필", "이콩덩", "암거나"],
+        ["4막노말버스", "강겹필", "콩당콩설", "배아"],
+        ["세르카노말", "리퍼길동이", "블레이드", "워로드"],
+        ["4막하드", "바훈", "나혜찌니"],
+        ["4막하드", "리퍼님", "적묘법"],
+        ["4막하드", "김겹필", "또아가"],
+    ],
+
+    "금요일": [
+        ["4노 본1부3 버스", "스윽(본)", "블레이드", "데헌", "도화가"],
+        ["4노 본1부3 버스", "박겹필", "이콩덩", "디트", "창술(본)"],
+        ["4노 본1부3 버스", "이겹필", "혜진이(본)", "호크", "워로드"],
+        ["4노 본1부3 버스", "최겹필", "도빵울", "디트(본)", "브커"],
+        ["종막 버스", "이겹필", "또아가", "호크", "워로드"],
+        ["종막 버스", "김겹필", "블레이드", "인파", "도화가"],
+        ["종막 버스", "강겹필", "이콩덩", "워로드", "블레이드"],
+        ["종막 버스", "휴지", "적묘법", "데헌", "스커"],
+    ],
+
+    "토요일": [],
+
+    "일요일": [
+        ["종막노말", "리퍼길동이", "도빵울"],
+        ["세르카하드", "암살자길동", "이플립"],
+        ["세르카하드", "저달호", "콩당콩설"],
+        ["세르카 하드버스", "상소", "혜진이", "디트"],
+        ["세르카 하드버스", "스윽", "나혜찌니", "워로드"],
+        ["세르카 하드버스", "휴지", "또아가", "스커"],
+    ],
+}
+
+# =========================
+# 쌀먹/분배 데이터
+# =========================
 targets = {
     "본계": 36,
     "스카": 18,
@@ -30,6 +102,11 @@ progress = {
 }
 
 DATA_FILE = "account_data.json"
+SCHEDULE_SENT_FILE = "schedule_sent.json"
+
+def save_data(data):
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -47,20 +124,33 @@ def load_data():
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    # 👉 기존 파일에 gold 없을 경우 대비
     if "gold" not in data:
         data["gold"] = {
             "my_gold": 0,
             "eight_gold": 0
         }
 
+    if "progress" not in data:
+        data["progress"] = {k: 0 for k in targets}
+
+    if "start_date" not in data:
+        data["start_date"] = str(datetime.date.today())
+
     return data
 
-def save_data(data):
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
+def load_schedule_sent():
+    if not os.path.exists(SCHEDULE_SENT_FILE):
+        return {"last_sent_date": ""}
+    with open(SCHEDULE_SENT_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_schedule_sent(data):
+    with open(SCHEDULE_SENT_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 data = load_data()
+schedule_sent_data = load_schedule_sent()
+
 progress = data["progress"]
 start_date = datetime.date.fromisoformat(data["start_date"])
 
@@ -73,14 +163,61 @@ count_last = 0
 TARGET_4 = 4
 TARGET_LAST = 4
 
-my_gold = 0
-eight_gold = 0
+# =========================
+# 공통 헤더
+# =========================
+def get_auth_headers():
+    return {
+        "accept": "application/json",
+        "authorization": f"bearer {LOSTARK_API_KEY}"
+    }
 
+def get_json_headers():
+    return {
+        "accept": "application/json",
+        "authorization": f"bearer {LOSTARK_API_KEY}",
+        "content-type": "application/json"
+    }
 
+# =========================
+# 레이드 일정 메시지
+# =========================
+def get_korean_weekday_name(dt: datetime.datetime) -> str:
+    weekday_map = {
+        0: "월요일",
+        1: "화요일",
+        2: "수요일",
+        3: "목요일",
+        4: "금요일",
+        5: "토요일",
+        6: "일요일",
+    }
+    return weekday_map[dt.weekday()]
+
+def build_schedule_message(day_name: str) -> str:
+    rows = RAID_SCHEDULE.get(day_name, [])
+
+    if not rows:
+        return f"📅 오늘의 레이드 일정 ({day_name})\n\n오늘은 등록된 일정이 없습니다."
+
+    msg = f"📅 오늘의 레이드 일정 ({day_name})\n\n"
+
+    for idx, row in enumerate(rows, start=1):
+        raid_name = row[0]
+        members = [x for x in row[1:] if x and str(x).strip()]
+        msg += f"**{idx}. {raid_name}**\n"
+        msg += " / ".join(members) + "\n\n"
+
+    return msg.strip()
+
+# =========================
+# 봇 이벤트
+# =========================
 @bot.event
 async def on_ready():
     await bot.tree.sync()
     bot.loop.create_task(monthly_check_loop())
+    bot.loop.create_task(raid_schedule_loop())
     print("봇 로그인 완료")
 
 @bot.event
@@ -91,6 +228,10 @@ async def on_message(message):
     content = message.content
     print(f"DEBUG on_message called: {content} from {message.author}")
 
+    if content == "/오늘레이드":
+        await handle_today_raid(message, content)
+        return
+
     if content == "/남은시간":
         await handle_remaining_time(message, content)
         return
@@ -99,7 +240,6 @@ async def on_message(message):
         await handle_crit(message, content)
         return
 
-    # 유각/보석 등 특정 명령어
     if content.startswith("/유각"):
         await handle_engraving(message, content)
         return
@@ -108,17 +248,14 @@ async def on_message(message):
         await handle_gem(message, content)
         return
 
-    # 숫자 경매 명령: /숫자 4 또는 8
     if re.match(r"^/\d+ (3|4|8)$", content):
         await handle_auction(message, content)
         return
 
-    # raid 관련 명령: /캐릭터이름 4막 또는 종막
     if re.match(r"^/.+ (4막|종막)$", content):
         await handle_raid(message, content)
         return
 
-    # 나머지 단일 명령
     if content == "/현황":
         await handle_status(message, content)
         return
@@ -139,12 +276,10 @@ async def on_message(message):
         await handle_split_reset(message, content)
         return
 
-    # 숫자 단일 명령: /숫자 → 분배
     if re.match(r"^/\d+$", content):
         await handle_split(message, content)
         return
 
-    # 이름+금액 명령: /나 17000 등
     if re.match(r"^/(나|에잇) \d+$", content):
         await handle_spend(message, content)
         return
@@ -161,11 +296,88 @@ async def on_message(message):
         if content == "/쌀먹현황":
             await handle_account_status(message, content)
             return
-    
+
     if content.startswith("/") and " " not in content:
         await handle_armory(message, content)
         return
 
+    return True
+
+# =========================
+# 자동 루프
+# =========================
+async def raid_schedule_loop():
+    await bot.wait_until_ready()
+
+    while not bot.is_closed():
+        try:
+            now = datetime.datetime.now(KST)
+            today_str = now.strftime("%Y-%m-%d")
+            today_name = get_korean_weekday_name(now)
+            channel = bot.get_channel(TARGET_CHANNEL)
+
+            already_sent = schedule_sent_data.get("last_sent_date") == today_str
+
+            if now.hour == 19 and now.minute == 50 and not already_sent:
+                if channel:
+                    msg = build_schedule_message(today_name)
+                    await channel.send(msg)
+                    schedule_sent_data["last_sent_date"] = today_str
+                    save_schedule_sent(schedule_sent_data)
+
+            await asyncio.sleep(30)
+
+        except Exception as e:
+            print(f"[raid_schedule_loop ERROR] {e}")
+            await asyncio.sleep(30)
+
+async def monthly_check_loop():
+    global start_date
+    await bot.wait_until_ready()
+
+    warned = False
+
+    while not bot.is_closed():
+        now = datetime.date.today()
+
+        reset_date = start_date + datetime.timedelta(days=30)
+        warn_date = reset_date - datetime.timedelta(days=7)
+
+        channel = bot.get_channel(TARGET_CHANNEL)
+
+        if now == warn_date and not warned:
+            if channel:
+                await channel.send("⚠️ 일주일 후 월간 정산이 초기화됩니다.")
+            warned = True
+
+        if now >= reset_date:
+            for k in progress:
+                progress[k] = 0
+
+            start_date = now
+
+            data["progress"] = progress
+            data["start_date"] = str(start_date)
+            save_data(data)
+
+            warned = False
+
+            if channel:
+                await channel.send("🔄 월간 정산이 초기화되었습니다.")
+
+        await asyncio.sleep(86400)
+
+# =========================
+# 명령 처리
+# =========================
+async def handle_today_raid(message, content):
+    if content != "/오늘레이드":
+        return False
+
+    now = datetime.datetime.now(KST)
+    today_name = get_korean_weekday_name(now)
+    msg = build_schedule_message(today_name)
+    await message.channel.send(msg)
     return True
 
 async def handle_crit(message, content):
@@ -176,7 +388,6 @@ async def handle_crit(message, content):
 
     char_name = parts[1]
 
-    # 기존 calculate_crit_rate 로직 활용
     try:
         char_class = get_character_class(char_name)
         crit_stat = get_crit_stat(char_name)
@@ -188,8 +399,7 @@ async def handle_crit(message, content):
 
         total = stat_crit + engraving_crit + arkpassive_crit + bracelet_crit + accessory_crit
 
-        # 클래스별 치적 보너스
-        if char_class in ["건슬링어","기상술사","데빌헌터","스트라이커","배틀마스터","아르카나"]:
+        if char_class in ["건슬링어", "기상술사", "데빌헌터", "스트라이커", "배틀마스터", "아르카나"]:
             total += 10
             msg = (
                 f"📊 {char_name} ({char_class}) 치명률\n"
@@ -204,15 +414,14 @@ async def handle_crit(message, content):
             await message.channel.send(msg)
             return True
 
-
         msg = (
             f"📊 {char_name} ({char_class}) 치명률\n"
-            f"스탯 치적: {round(stat_crit,1)}%\n"
+            f"스탯 치적: {round(stat_crit, 1)}%\n"
             f"각인 치적: {engraving_crit}%\n"
             f"팔찌 치적: {bracelet_crit}%\n"
-            f"악세 치적: {round(accessory_crit,1)}%\n"
+            f"악세 치적: {round(accessory_crit, 1)}%\n"
             f"아크패시브 치적: {arkpassive_crit}%\n"
-            f"총 치적: {round(total,1)}%"
+            f"총 치적: {round(total, 1)}%"
         )
 
         await message.channel.send(msg)
@@ -223,6 +432,7 @@ async def handle_crit(message, content):
         return False
 
 async def handle_account_reset(message, content):
+    global start_date
 
     if content != "/쌀먹초기화":
         return False
@@ -230,17 +440,16 @@ async def handle_account_reset(message, content):
     for k in progress:
         progress[k] = 0
 
-    data["progress"] = progress
-    data["start_date"] = str(datetime.date.today())
+    start_date = datetime.date.today()
 
+    data["progress"] = progress
+    data["start_date"] = str(start_date)
     save_data(data)
 
     await message.channel.send("🔄 쌀먹 현황이 초기화되었습니다.")
-
     return True
 
 async def handle_account_status(message, content):
-
     if content != "/쌀먹현황":
         return False
 
@@ -252,7 +461,6 @@ async def handle_remaining_time(message, content):
         return False
 
     now = datetime.datetime.now()
-    # start_date는 데이터 파일 기준으로 이미 존재
     reset_datetime = datetime.datetime.combine(start_date + datetime.timedelta(days=30), datetime.time(0, 0))
 
     remaining = reset_datetime - now
@@ -269,41 +477,6 @@ async def handle_remaining_time(message, content):
 
     return True
 
-async def monthly_check_loop():
-
-    await bot.wait_until_ready()
-
-    warned = False
-
-    while not bot.is_closed():
-
-        now = datetime.date.today()
-
-        reset_date = start_date + datetime.timedelta(days=30)
-        warn_date = reset_date - datetime.timedelta(days=7)
-
-        channel = bot.get_channel(TARGET_CHANNEL)
-
-        if now == warn_date and not warned:
-            await channel.send("⚠️ 일주일 후 월간 정산이 초기화됩니다.")
-            warned = True
-
-        if now >= reset_date:
-            for k in progress:
-                progress[k] = 0
-
-            new_start = now
-
-            data["progress"] = progress
-            data["start_date"] = str(new_start)
-            save_data(data)
-
-            warned = False
-
-            await channel.send("🔄 월간 정산이 초기화되었습니다.")
-
-        await asyncio.sleep(86400)
-
 async def handle_armory(message, content):
     if not content.startswith("/"):
         return False
@@ -312,15 +485,8 @@ async def handle_armory(message, content):
     if not char_name:
         return False
 
-    API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA"
-    headers = {
-        "accept": "application/json",
-        "authorization": f"bearer {API_KEY}"
-    }
+    headers = get_auth_headers()
 
-    # ---------------------------
-    # 원정대 목록
-    # ---------------------------
     siblings_url = f"https://developer-lostark.game.onstove.com/characters/{char_name}/siblings"
     armory_list = []
 
@@ -331,9 +497,6 @@ async def handle_armory(message, content):
                 return True
             siblings_data = await resp.json()
 
-        # ---------------------------
-        # 보석 가격 한 번만 가져오기
-        # ---------------------------
         gem_prices_local = await get_gem_prices()
 
         for c in siblings_data:
@@ -344,7 +507,6 @@ async def handle_armory(message, content):
             single_name = c["CharacterName"]
             encoded = aiohttp.helpers.quote(single_name)
 
-            # 프로필 조회
             profile_url = f"https://developer-lostark.game.onstove.com/armories/characters/{encoded}/profiles"
             async with session.get(profile_url, headers=headers) as resp2:
                 if resp2.status != 200:
@@ -353,7 +515,6 @@ async def handle_armory(message, content):
                 char_class = profile_data.get("CharacterClassName", "Unknown")
                 combat_power = profile_data.get("CombatPower", 0)
 
-            # 장착 보석 조회
             gem_url = f"https://developer-lostark.game.onstove.com/armories/characters/{encoded}/gems"
             async with session.get(gem_url, headers=headers) as resp3:
                 if resp3.status != 200:
@@ -363,9 +524,10 @@ async def handle_armory(message, content):
                     gems_raw = gem_data.get("Gems")
                     if not isinstance(gems_raw, list):
                         gems_raw = []
-                    # HTML 제거 + 공백 제거
-                    gems = [re.sub(r"<.*?>", "", g.get("Name", "")).strip().replace(" ", "")
-                            for g in gems_raw if g.get("Name")]
+                    gems = [
+                        re.sub(r"<.*?>", "", g.get("Name", "")).strip().replace(" ", "")
+                        for g in gems_raw if g.get("Name")
+                    ]
 
             armory_list.append({
                 "name": single_name,
@@ -375,9 +537,6 @@ async def handle_armory(message, content):
                 "gems": gems
             })
 
-    # ---------------------------
-    # 메시지 생성
-    # ---------------------------
     armory_list.sort(key=lambda x: x["level"], reverse=True)
     grand_total = 0
     msg = "```css\n"
@@ -385,30 +544,29 @@ async def handle_armory(message, content):
         msg += f"[{c['class']}] {c['name']} ({c['level']}, 전투력 {c['combat_power']})\n"
         if c["gems"]:
             gem_counter = Counter()
-            # clean + bound info 처리
             for g in c["gems"]:
                 clean_name, is_bound = clean_gem_name(g)
                 gem_counter[(clean_name, is_bound)] += 1
 
             total_price = 0
             for (gem_name, is_bound), count in gem_counter.items():
-                # 메시지에는 귀속 여부 표시
                 display_name = f"{gem_name} (귀속)" if is_bound else gem_name
                 msg += f"• {display_name} x{count}\n"
 
-                # 가격 계산: 귀속이면 제외
                 if not is_bound:
                     price = 0
                     if gem_name in gem_prices_local:
                         price = gem_prices_local[gem_name]
                     elif "광휘" in gem_name:
-                        # 거래 가능한 광휘는 겁화 가격으로
-                        level = re.search(r"\d+레벨", gem_name).group()
-                        price = gem_prices_local.get(f"{level} 겁화", 0)
+                        level_match = re.search(r"\d+레벨", gem_name)
+                        if level_match:
+                            level = level_match.group()
+                            price = gem_prices_local.get(f"{level} 겁화", 0)
                     total_price += price * count
 
                 print(
-                    f"DEBUG {gem_name}, bound: {is_bound} -> price considered: {0 if is_bound else price}, count: {count}")
+                    f"DEBUG {gem_name}, bound: {is_bound} -> price considered: {0 if is_bound else price}, count: {count}"
+                )
 
             msg += f"💰 보석 총 가격: {total_price:,} 골드\n"
             grand_total += total_price
@@ -422,8 +580,7 @@ async def handle_armory(message, content):
     await message.channel.send(msg)
     return True
 
-def clean_gem_name(name: str) -> str:
-    """보석 이름 정리 및 귀속 여부 판단"""
+def clean_gem_name(name: str):
     is_bound = "(귀속)" in name
     name_clean = name.replace("(귀속)", "").strip()
     match = re.search(r"(\d+레벨)\s*(겁화|작열|광휘)", name_clean)
@@ -431,18 +588,17 @@ def clean_gem_name(name: str) -> str:
         return match.group(1) + " " + match.group(2), is_bound
     return name_clean, is_bound
 
-# 전역 변수
 async def get_gem_prices():
     url = "https://developer-lostark.game.onstove.com/auctions/items"
-    headers = {
-        "accept": "application/json",
-        "authorization": "bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA",
-        "content-type": "application/json"
-    }
+    headers = get_json_headers()
 
-    gems = ["6레벨 겁화", "6레벨 작열", "7레벨 겁화", "7레벨 작열",
-            "8레벨 겁화", "8레벨 작열", "9레벨 겁화", "9레벨 작열",
-            "10레벨 겁화", "10레벨 작열"]
+    gems = [
+        "6레벨 겁화", "6레벨 작열",
+        "7레벨 겁화", "7레벨 작열",
+        "8레벨 겁화", "8레벨 작열",
+        "9레벨 겁화", "9레벨 작열",
+        "10레벨 겁화", "10레벨 작열"
+    ]
 
     gem_prices_local = {}
 
@@ -463,13 +619,16 @@ async def get_gem_prices():
                 if resp.status != 200:
                     gem_prices_local[gem] = 0
                     continue
+
                 data = await resp.json()
                 items = data.get("Items", [])
                 cheapest_price = None
+
                 for item in items:
                     price = item["AuctionInfo"]["BuyPrice"]
-                    if price and (cheapest_price is None or price < price):
+                    if price and (cheapest_price is None or price < cheapest_price):
                         cheapest_price = price
+
                 gem_prices_local[gem] = cheapest_price or 0
 
     print(gem_prices_local)
@@ -480,20 +639,20 @@ async def handle_gem(message, content):
         return False
 
     url = "https://developer-lostark.game.onstove.com/auctions/items"
+    headers = get_json_headers()
 
-    headers = {
-        "accept": "application/json",
-        "authorization": "bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA",
-        "content-type": "application/json"
-    }
-
-    gems = ["6레벨 겁화", "6레벨 작열", "7레벨 겁화", "7레벨 작열", "8레벨 겁화", "8레벨 작열", "9레벨 겁화", "9레벨 작열", "10레벨 겁화", "10레벨 작열"]
+    gems = [
+        "6레벨 겁화", "6레벨 작열",
+        "7레벨 겁화", "7레벨 작열",
+        "8레벨 겁화", "8레벨 작열",
+        "9레벨 겁화", "9레벨 작열",
+        "10레벨 겁화", "10레벨 작열"
+    ]
 
     result_msg = "💎 보석 시세 (최저가)\n\n"
 
     async with aiohttp.ClientSession() as session:
         for gem in gems:
-
             payload = {
                 "ItemLevelMin": 0,
                 "ItemLevelMax": 1800,
@@ -506,7 +665,6 @@ async def handle_gem(message, content):
             }
 
             async with session.post(url, headers=headers, json=payload) as resp:
-
                 if resp.status != 200:
                     result_msg += f"{gem} : 조회 실패\n"
                     continue
@@ -518,7 +676,6 @@ async def handle_gem(message, content):
 
                 for item in items:
                     price = item["AuctionInfo"]["BuyPrice"]
-
                     if price and (cheapest_price is None or price < cheapest_price):
                         cheapest_price = price
 
@@ -528,7 +685,6 @@ async def handle_gem(message, content):
                     result_msg += f"{gem} : 매물 없음\n"
 
     await message.channel.send(result_msg)
-
     return True
 
 async def handle_gold_status(message, content):
@@ -539,6 +695,10 @@ async def handle_gold_status(message, content):
 
     my_gold = 0
     eight_gold = 0
+
+    data["gold"]["my_gold"] = my_gold
+    data["gold"]["eight_gold"] = eight_gold
+    save_data(data)
 
     await message.channel.send(
         "💰 분배 데이터 초기화 완료\n"
@@ -561,7 +721,6 @@ async def handle_split_reset(message, content):
     return True
 
 async def send_status(channel):
-
     msg = "📊 이번달 진행 상황\n\n"
 
     total_now = 0
@@ -580,26 +739,18 @@ async def send_status(channel):
     await channel.send(msg)
 
 async def handle_engraving(message, content):
-
     if content != "/유각":
         return False
 
     url = "https://developer-lostark.game.onstove.com/markets/items"
-
-    headers = {
-        "content-type": "application/json",
-        "accept": "application/json",
-        "authorization": "bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyIsImtpZCI6IktYMk40TkRDSTJ5NTA5NWpjTWk5TllqY2lyZyJ9.eyJpc3MiOiJodHRwczovL2x1ZHkuZ2FtZS5vbnN0b3ZlLmNvbSIsImF1ZCI6Imh0dHBzOi8vbHVkeS5nYW1lLm9uc3RvdmUuY29tL3Jlc291cmNlcyIsImNsaWVudF9pZCI6IjEwMDAwMDAwMDA1MDk4MDMifQ.Sju8nBJKOXK2WJhNeTczoV2srz14C688OGWIs5nh6qAiL1EBzkg_n6dJze5hK9WgxGd6munpmcfbFe1uOK8yLg5p5qCzOXXDzYYGjyX1gI-N9_D729ucIxCHa7VKS2VfVZoz1n3zyd83XHGkjZ5Ye2WIPgdYiuZWfjgxr7YfKZpVXM24A7bZMot-Do_3Or9EbZUn5llWoB2Q_bxbNtKWsevWAA-JIJzdiDS6S2rjKyQCRo5sJb6KhA3xauPz0uWKpmuTrD2AkTWObj9grGWDpbr1ROiMEYFUCUevz3J_jHIHKe6lOK9Hp6scKV8nfQQyyDDy_oCNlG-pb-rN6vlzxA"
-    }
+    headers = get_json_headers()
 
     result_msg = "📜 유물 각인서 시세\n\n"
 
     async with aiohttp.ClientSession() as session:
-
         all_items = []
 
         for page in range(1, 3):
-
             payload = {
                 "CategoryCode": 40000,
                 "PageNo": page,
@@ -608,29 +759,23 @@ async def handle_engraving(message, content):
             }
 
             async with session.post(url, headers=headers, json=payload) as resp:
-
                 if resp.status != 200:
                     await message.channel.send("API 조회 실패")
                     return True
 
                 data = await resp.json()
                 items = data.get("Items", [])
-
                 all_items.extend(items)
 
         for item in all_items:
-
             name = item["Name"].replace("유물 ", "").replace(" 각인서", "")
             price = item["CurrentMinPrice"]
-
             result_msg += f"{name} : {price:,}g\n"
 
     await message.channel.send(result_msg)
-
     return True
 
 async def handle_account(message, content):
-
     parts = content.split()
     if len(parts) != 2:
         return False
@@ -674,12 +819,14 @@ async def handle_spend(message, content):
 
     if name == "나":
         my_gold -= amount
-
     elif name == "에잇":
         eight_gold -= amount
-
     else:
         return False
+
+    data["gold"]["my_gold"] = my_gold
+    data["gold"]["eight_gold"] = eight_gold
+    save_data(data)
 
     await message.channel.send(
         f"💰 현재 골드\n"
@@ -720,7 +867,6 @@ async def handle_split(message, content):
 
     data["gold"]["my_gold"] = my_gold
     data["gold"]["eight_gold"] = eight_gold
-
     save_data(data)
 
     await message.channel.send(
@@ -731,7 +877,6 @@ async def handle_split(message, content):
 
     return True
 
-# 경매 계산
 async def handle_auction(message, content):
     global my_gold, eight_gold
 
@@ -758,7 +903,6 @@ async def handle_auction(message, content):
         my_gold += split
 
         data["gold"]["my_gold"] = my_gold
-
         save_data(data)
 
         await message.channel.send(
@@ -766,10 +910,8 @@ async def handle_auction(message, content):
             f"1인당 : {split:,} 골드\n\n"
             f"나 : {my_gold}\n"
         )
-
         return True
 
-    # 기존 로직 유지
     if party == 4:
         direct_price = price * 0.75
     else:
@@ -777,12 +919,10 @@ async def handle_auction(message, content):
 
     direct_share = direct_price / (party - 1)
 
-    # 손익분기점
     break_even = price * 0.95 * (party - 1) / party
     break_even_share = break_even / (party - 1)
     break_even_profit = price * 0.95 - break_even
 
-    # 입찰 적정가
     bid = break_even / 1.1
     bid_share = bid / (party - 1)
     bid_profit = price * 0.95 - bid
@@ -804,8 +944,6 @@ async def handle_auction(message, content):
 
     return True
 
-
-# 레이드 기록
 async def handle_raid(message, content):
     global count_4, count_last
 
@@ -835,13 +973,10 @@ async def handle_raid(message, content):
 
     return True
 
-
-# 현황 보기
 async def handle_status(message, content):
     if content != "/현황":
         return False
 
-    # 진행률 바 함수
     def progress_bar(current, total):
         filled = "🟩" * current
         empty = "⬜" * (total - current)
@@ -857,8 +992,6 @@ async def handle_status(message, content):
     await message.channel.send(embed=embed)
     return True
 
-
-# 초기화
 async def handle_reset(message, content):
     global count_4, count_last
 
@@ -874,11 +1007,8 @@ async def handle_reset(message, content):
         await msg.delete()
 
     await message.channel.send("✅ 모든 기록 초기화 완료")
-
     return True
 
-
-# 기타
 async def handle_misc(message, content):
     if content == "/혜진":
         await message.channel.send("뱃살보송...")
@@ -886,11 +1016,14 @@ async def handle_misc(message, content):
 
     return False
 
+# =========================
+# 슬래시 명령어
+# =========================
 @bot.tree.command(name="도움", description="명령어 목록 보기")
 async def help_cmd(interaction: discord.Interaction):
-
     await interaction.response.send_message(
         "📖 명령어 목록\n"
+        "/오늘레이드\n"
         "/17000(혜진이한테 유각분배 대신 버스비로 받을 금액)\n"
         "/나 or 에잇 17000(혜진이한테 유각분배 대신 버스비로 받은 금액)\n"
         "/분배초기화(그냥 귀찮아서 만든거)\n"
