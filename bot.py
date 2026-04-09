@@ -230,7 +230,7 @@ async def on_message(message):
     print(f"DEBUG on_message called: {content} from {message.author}")
 
     if content == "/테스트레이드":
-        msg = build_schedule_message("금요일")
+        msg = build_schedule_message("월요일")
         await message.channel.send(msg)
         return
 
