@@ -201,60 +201,52 @@ def build_schedule_message(day_name: str) -> str:
     if not rows:
         return f"📅 {day_name} 레이드 일정\n```등록된 일정 없음```"
 
-    chunk_size = 3
+    def display_width(text: str) -> int:
+        width = 0
+        for ch in text:
+            if ord(ch) > 127:   # 한글/전각 문자 대충 2칸 처리
+                width += 2
+            else:
+                width += 1
+        return width
 
-    # 먼저 멤버를 줄 단위로 쪼개서 테이블용 데이터 준비
-    table_rows = []
+    def pad(text: str, width: int) -> str:
+        return text + " " * max(0, width - display_width(text))
+
+    data = []
     for idx, row in enumerate(rows, start=1):
         raid_name = str(row[0]).strip()
         members = [str(x).strip() for x in row[1:] if x and str(x).strip()]
+        member_text = ", ".join(members) if members else "-"
+        data.append((str(idx), raid_name, member_text))
 
-        member_chunks = [
-            ", ".join(members[i:i + chunk_size])
-            for i in range(0, len(members), chunk_size)
-        ] if members else ["-"]
+    no_header = "번호"
+    raid_header = "레이드"
+    member_header = "참여자"
 
-        table_rows.append({
-            "no": str(idx),
-            "raid": raid_name,
-            "members": member_chunks,
-        })
+    no_width = max(display_width(no_header), max(display_width(x[0]) for x in data))
+    raid_width = max(display_width(raid_header), max(display_width(x[1]) for x in data))
+    member_width = max(display_width(member_header), max(display_width(x[2]) for x in data))
 
-    # 실제 데이터 기준으로 컬럼 폭 계산
-    no_width = max(len("No"), max(len(r["no"]) for r in table_rows))
-    raid_width = max(len("Raid"), max(len(r["raid"]) for r in table_rows))
-    members_width = max(
-        len("Members"),
-        max(len(line) for r in table_rows for line in r["members"])
-    )
+    gap = "  "
 
-    # 헤더
     header = (
-        f"{'No':<{no_width}}  "
-        f"{'Raid':<{raid_width}}  "
-        f"{'Members':<{members_width}}"
+        pad(no_header, no_width) + gap +
+        pad(raid_header, raid_width) + gap +
+        pad(member_header, member_width)
     )
 
-    separator = "-" * len(header)
+    separator = "-" * display_width(header)
 
     lines = [header, separator]
 
-    # 본문
-    for r in table_rows:
-        for i, member_line in enumerate(r["members"]):
-            if i == 0:
-                line = (
-                    f"{r['no']:<{no_width}}  "
-                    f"{r['raid']:<{raid_width}}  "
-                    f"{member_line:<{members_width}}"
-                )
-            else:
-                line = (
-                    f"{'':<{no_width}}  "
-                    f"{'':<{raid_width}}  "
-                    f"{member_line:<{members_width}}"
-                )
-            lines.append(line)
+    for no, raid, members in data:
+        line = (
+            pad(no, no_width) + gap +
+            pad(raid, raid_width) + gap +
+            pad(members, member_width)
+        )
+        lines.append(line)
 
     table = "\n".join(lines)
     return f"📅 {day_name} 레이드 일정\n```{table}```"
