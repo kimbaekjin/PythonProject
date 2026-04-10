@@ -201,50 +201,42 @@ def build_schedule_message(day_name: str) -> str:
     if not rows:
         return f"📅 {day_name} 레이드 일정\n```등록된 일정 없음```"
 
-    def display_width(text: str) -> int:
-        width = 0
-        for ch in text:
-            if ord(ch) > 127:   # 한글/전각 문자 대충 2칸 처리
-                width += 2
-            else:
-                width += 1
-        return width
+    from wcwidth import wcwidth
 
-    def pad(text: str, width: int) -> str:
+    def display_width(text: str) -> int:
+        return sum(max(wcwidth(ch), 0) for ch in str(text))
+
+    def pad_right(text: str, width: int) -> str:
+        text = str(text)
         return text + " " * max(0, width - display_width(text))
 
-    data = []
-    for idx, row in enumerate(rows, start=1):
-        raid_name = str(row[0]).strip()
-        members = [str(x).strip() for x in row[1:] if x and str(x).strip()]
-        member_text = ", ".join(members) if members else "-"
-        data.append((str(idx), raid_name, member_text))
+    # 레이드명은 최대 5글자라고 했으니 고정
+    RAID_WIDTH = 10      # 한글 5글자 = 대체로 10칸
+    MEMBER1_WIDTH = 14   # 첫 번째 참여자 칸
+    MEMBER2_WIDTH = 14   # 두 번째 참여자 칸
+    GAP = "  "
 
-    no_header = "번호"
-    raid_header = "레이드"
-    member_header = "참여자"
-
-    no_width = max(display_width(no_header), max(display_width(x[0]) for x in data))
-    raid_width = max(display_width(raid_header), max(display_width(x[1]) for x in data))
-    member_width = max(display_width(member_header), max(display_width(x[2]) for x in data))
-
-    gap = "  "
+    lines = []
 
     header = (
-        pad(no_header, no_width) + gap +
-        pad(raid_header, raid_width) + gap +
-        pad(member_header, member_width)
+        f"{pad_right('레이드', RAID_WIDTH)}{GAP}"
+        f"{pad_right('참여자1', MEMBER1_WIDTH)}{GAP}"
+        f"{pad_right('참여자2', MEMBER2_WIDTH)}"
     )
+    lines.append(header)
+    lines.append("-" * display_width(header))
 
-    separator = "-" * display_width(header)
+    for row in rows:
+        raid_name = str(row[0]).strip()
+        members = [str(x).strip() for x in row[1:] if x and str(x).strip()]
 
-    lines = [header, separator]
+        member1 = members[0] if len(members) > 0 else "-"
+        member2 = members[1] if len(members) > 1 else "-"
 
-    for no, raid, members in data:
         line = (
-            pad(no, no_width) + gap +
-            pad(raid, raid_width) + gap +
-            pad(members, member_width)
+            f"{pad_right(raid_name, RAID_WIDTH)}{GAP}"
+            f"{pad_right(member1, MEMBER1_WIDTH)}{GAP}"
+            f"{pad_right(member2, MEMBER2_WIDTH)}"
         )
         lines.append(line)
 
