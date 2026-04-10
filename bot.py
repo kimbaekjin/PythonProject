@@ -199,26 +199,25 @@ def build_schedule_message(day_name: str) -> str:
     rows = RAID_SCHEDULE.get(day_name, [])
 
     if not rows:
-        return f"📅 {day_name} 레이드 일정\n```등록된 일정 없음```"
+        return f"📅 {day_name} 레이드 일정\n\n등록된 일정 없음"
 
-    # 컬럼 길이 계산
-    max_raid_len = max(len(row[0]) for row in rows)
-
-    lines = []
-    lines.append(f"{'No':<3} | {'Raid':<{max_raid_len}} | Members")
-    lines.append("-" * (max_raid_len + 20))
+    msg = f"📅 {day_name} 레이드 일정\n\n"
 
     for idx, row in enumerate(rows, start=1):
         raid_name = row[0]
         members = [x for x in row[1:] if x and str(x).strip()]
-        member_text = ", ".join(members) if members else "-"
 
-        line = f"{idx:<3} | {raid_name:<{max_raid_len}} | {member_text}"
-        lines.append(line)
+        msg += f"{idx}. {raid_name}\n"
 
-    table = "\n".join(lines)
+        if members:
+            msg += "   " + ", ".join(members) + "\n"
+        else:
+            msg += "   -\n"
 
-    return f"📅 {day_name} 레이드 일정\n```{table}```"
+        if idx != len(rows):
+            msg += "\n"
+
+    return msg
 
 # =========================
 # 봇 이벤트
