@@ -208,6 +208,7 @@ def build_schedule_message(day_name: str) -> str:
         members = [x for x in row[1:] if x and str(x).strip()]
         msg += f"**{idx}. {raid_name}**\n"
         msg += " / ".join(members) + "\n\n"
+        msg += "hello"
 
     return msg.strip()
 
