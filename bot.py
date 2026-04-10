@@ -201,37 +201,62 @@ def build_schedule_message(day_name: str) -> str:
     if not rows:
         return f"📅 {day_name} 레이드 일정\n```등록된 일정 없음```"
 
-    max_raid_len = max(len(row[0]) for row in rows)
+    chunk_size = 3
 
-    lines = []
-    lines.append(f"{'No':<3} {'Raid':<{max_raid_len}} Members")
-    lines.append("-" * (max_raid_len + 25))
-
+    # 먼저 멤버를 줄 단위로 쪼개서 테이블용 데이터 준비
+    table_rows = []
     for idx, row in enumerate(rows, start=1):
-        raid_name = row[0]
-        members = [x for x in row[1:] if x and str(x).strip()]
+        raid_name = str(row[0]).strip()
+        members = [str(x).strip() for x in row[1:] if x and str(x).strip()]
 
-        # 👉 멤버를 여러 줄로 쪼갬 (핵심)
-        chunk_size = 3
         member_chunks = [
-            members[i:i + chunk_size]
+            ", ".join(members[i:i + chunk_size])
             for i in range(0, len(members), chunk_size)
-        ] if members else [["-"]]
+        ] if members else ["-"]
 
-        for i, chunk in enumerate(member_chunks):
-            member_text = ", ".join(chunk)
+        table_rows.append({
+            "no": str(idx),
+            "raid": raid_name,
+            "members": member_chunks,
+        })
 
+    # 실제 데이터 기준으로 컬럼 폭 계산
+    no_width = max(len("No"), max(len(r["no"]) for r in table_rows))
+    raid_width = max(len("Raid"), max(len(r["raid"]) for r in table_rows))
+    members_width = max(
+        len("Members"),
+        max(len(line) for r in table_rows for line in r["members"])
+    )
+
+    # 헤더
+    header = (
+        f"{'No':<{no_width}}  "
+        f"{'Raid':<{raid_width}}  "
+        f"{'Members':<{members_width}}"
+    )
+
+    separator = "-" * len(header)
+
+    lines = [header, separator]
+
+    # 본문
+    for r in table_rows:
+        for i, member_line in enumerate(r["members"]):
             if i == 0:
-                # 첫 줄 → 번호 + 레이드 표시
-                line = f"{idx:<3} {raid_name:<{max_raid_len}} {member_text}"
+                line = (
+                    f"{r['no']:<{no_width}}  "
+                    f"{r['raid']:<{raid_width}}  "
+                    f"{member_line:<{members_width}}"
+                )
             else:
-                # 다음 줄 → 레이드 공백 유지 (정렬 핵심)
-                line = f"{'':<3} {'':<{max_raid_len}} {member_text}"
-
+                line = (
+                    f"{'':<{no_width}}  "
+                    f"{'':<{raid_width}}  "
+                    f"{member_line:<{members_width}}"
+                )
             lines.append(line)
 
     table = "\n".join(lines)
-
     return f"📅 {day_name} 레이드 일정\n```{table}```"
 
 # =========================
