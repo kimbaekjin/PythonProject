@@ -199,25 +199,40 @@ def build_schedule_message(day_name: str) -> str:
     rows = RAID_SCHEDULE.get(day_name, [])
 
     if not rows:
-        return f"📅 {day_name} 레이드 일정\n\n등록된 일정 없음"
+        return f"📅 {day_name} 레이드 일정\n```등록된 일정 없음```"
 
-    msg = f"📅 {day_name} 레이드 일정\n\n"
+    max_raid_len = max(len(row[0]) for row in rows)
+
+    lines = []
+    lines.append(f"{'No':<3} {'Raid':<{max_raid_len}} Members")
+    lines.append("-" * (max_raid_len + 25))
 
     for idx, row in enumerate(rows, start=1):
         raid_name = row[0]
         members = [x for x in row[1:] if x and str(x).strip()]
 
-        msg += f"{idx}. {raid_name}\n"
+        # 👉 멤버를 여러 줄로 쪼갬 (핵심)
+        chunk_size = 3
+        member_chunks = [
+            members[i:i + chunk_size]
+            for i in range(0, len(members), chunk_size)
+        ] if members else [["-"]]
 
-        if members:
-            msg += "   " + ", ".join(members) + "\n"
-        else:
-            msg += "   -\n"
+        for i, chunk in enumerate(member_chunks):
+            member_text = ", ".join(chunk)
 
-        if idx != len(rows):
-            msg += "\n"
+            if i == 0:
+                # 첫 줄 → 번호 + 레이드 표시
+                line = f"{idx:<3} {raid_name:<{max_raid_len}} {member_text}"
+            else:
+                # 다음 줄 → 레이드 공백 유지 (정렬 핵심)
+                line = f"{'':<3} {'':<{max_raid_len}} {member_text}"
 
-    return msg
+            lines.append(line)
+
+    table = "\n".join(lines)
+
+    return f"📅 {day_name} 레이드 일정\n```{table}```"
 
 # =========================
 # 봇 이벤트
