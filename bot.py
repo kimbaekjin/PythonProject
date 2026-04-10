@@ -199,18 +199,25 @@ def build_schedule_message(day_name: str) -> str:
     rows = RAID_SCHEDULE.get(day_name, [])
 
     if not rows:
-        return f"📅 오늘의 레이드 일정 ({day_name})\n\n오늘은 등록된 일정이 없습니다."
+        return f"📅 오늘의 레이드 일정 ({day_name})\n\n❌ 등록된 일정이 없습니다."
 
     msg = f"📅 오늘의 레이드 일정 ({day_name})\n\n"
 
     for idx, row in enumerate(rows, start=1):
         raid_name = row[0]
         members = [x for x in row[1:] if x and str(x).strip()]
-        msg += f"**{idx}. {raid_name}**\n"
-        msg += " / ".join(members) + "\n\n"
-        msg += "hello"
 
-    return msg.strip()
+        msg += f"{idx}. **{raid_name}**\n"
+
+        if members:
+            msg += f"   └ {', '.join(members)}\n"
+        else:
+            msg += f"   └ (인원 없음)\n"
+
+        if idx != len(rows):
+            msg += "\n"
+
+    return msg
 
 # =========================
 # 봇 이벤트
