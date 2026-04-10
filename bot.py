@@ -216,8 +216,8 @@ def build_schedule_message(day_name: str) -> str:
 
     header = ""
     header = put_at(header, "레이드", RAID_COL)
-    header = put_at(header, "인원1", MEMBER1_COL)
-    header = put_at(header, "인원2", MEMBER2_COL)
+    header = put_at(header, "나", MEMBER1_COL)
+    header = put_at(header, "혜진", MEMBER2_COL)
     lines.append(header)
 
     lines.append("-" * max(wcswidth(header), 40))
