@@ -6,6 +6,7 @@ import asyncio
 import datetime, json, os
 from zoneinfo import ZoneInfo
 from critical import *
+from wcwidth import wcswidth
 
 # =========================
 # 환경변수
@@ -201,43 +202,37 @@ def build_schedule_message(day_name: str) -> str:
     if not rows:
         return f"📅 {day_name} 레이드 일정\n```등록된 일정 없음```"
 
-    from wcwidth import wcwidth
+    def put_at(base: str, text: str, col: int) -> str:
+        now = wcswidth(base)
+        if now < col:
+            base += " " * (col - now)
+        return base + str(text)
 
-    def display_width(text: str) -> int:
-        return sum(max(wcwidth(ch), 0) for ch in str(text))
-
-    def pad_right(text: str, width: int) -> str:
-        text = str(text)
-        return text + " " * max(0, width - display_width(text))
-
-    # 레이드명은 최대 5글자라고 했으니 고정
-    RAID_WIDTH = 10      # 한글 5글자 = 대체로 10칸
-    MEMBER1_WIDTH = 14   # 첫 번째 참여자 칸
-    MEMBER2_WIDTH = 14   # 두 번째 참여자 칸
-    GAP = "  "
+    RAID_COL = 0
+    MEMBER1_COL = 14
+    MEMBER2_COL = 28
 
     lines = []
 
-    header = (
-        f"{pad_right('레이드', RAID_WIDTH)}{GAP}"
-        f"{pad_right('참여자1', MEMBER1_WIDTH)}{GAP}"
-        f"{pad_right('참여자2', MEMBER2_WIDTH)}"
-    )
+    header = ""
+    header = put_at(header, "레이드", RAID_COL)
+    header = put_at(header, "인원1", MEMBER1_COL)
+    header = put_at(header, "인원2", MEMBER2_COL)
     lines.append(header)
-    lines.append("-" * display_width(header))
+
+    lines.append("-" * max(wcswidth(header), 40))
 
     for row in rows:
-        raid_name = str(row[0]).strip()
+        raid = str(row[0]).strip()
         members = [str(x).strip() for x in row[1:] if x and str(x).strip()]
 
-        member1 = members[0] if len(members) > 0 else "-"
-        member2 = members[1] if len(members) > 1 else "-"
+        m1 = members[0] if len(members) > 0 else "-"
+        m2 = members[1] if len(members) > 1 else "-"
 
-        line = (
-            f"{pad_right(raid_name, RAID_WIDTH)}{GAP}"
-            f"{pad_right(member1, MEMBER1_WIDTH)}{GAP}"
-            f"{pad_right(member2, MEMBER2_WIDTH)}"
-        )
+        line = ""
+        line = put_at(line, raid, RAID_COL)
+        line = put_at(line, m1, MEMBER1_COL)
+        line = put_at(line, m2, MEMBER2_COL)
         lines.append(line)
 
     table = "\n".join(lines)
