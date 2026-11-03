@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from discord.ext import commands
 import aiohttp, math, discord, re
+from aiohttp import web
 from urllib.parse import quote
 from collections import Counter
 import asyncio
@@ -182,7 +183,7 @@ async def handle_cron_request(request):
         auth_header = request.headers.get("Authorization", "")
         auth_query = request.query.get("secret", "")
         if auth_header not in {f"Bearer {CRON_SECRET}", CRON_SECRET} and auth_query != CRON_SECRET:
-            return aiohttp.web.json_response({"ok": False, "error": "unauthorized"}, status=401)
+            return web.json_response({"ok": False, "error": "unauthorized"}, status=401)
 
     if request.method == "GET":
         text = request.query.get("message", "⏰ 30분마다 크론 요청이 도착했습니다.")
@@ -194,17 +195,17 @@ async def handle_cron_request(request):
         text = payload.get("message") or payload.get("text") or "⏰ 30분마다 크론 요청이 도착했습니다."
 
     await send_alert_message(text)
-    return aiohttp.web.json_response({"ok": True, "message": text})
+    return web.json_response({"ok": True, "message": text})
 
 async def start_http_server():
-    app = aiohttp.web.Application()
+    app = web.Application()
     app.router.add_route("*", "/cron/awake", handle_cron_request)
     app.router.add_route("*", "/cron/wakeup", handle_cron_request)
-    app.router.add_route("*", "/health", lambda request: aiohttp.web.json_response({"ok": True}))
+    app.router.add_route("*", "/health", lambda request: web.json_response({"ok": True}))
 
-    runner = aiohttp.web.AppRunner(app)
+    runner = web.AppRunner(app)
     await runner.setup()
-    site = aiohttp.web.TCPSite(runner, host="0.0.0.0", port=CRON_PORT)
+    site = web.TCPSite(runner, host="0.0.0.0", port=CRON_PORT)
     await site.start()
     print(f"[cron] HTTP 서버 시작: 0.0.0.0:{CRON_PORT}")
 
@@ -597,7 +598,7 @@ async def handle_armory(message, content):
                 continue
 
             single_name = c["CharacterName"]
-            encoded = aiohttp.helpers.quote(single_name)
+            encoded = quote(single_name)
 
             profile_url = f"https://developer-lostark.game.onstove.com/armories/characters/{encoded}/profiles"
             async with session.get(profile_url, headers=headers) as resp2:
