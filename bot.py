@@ -36,6 +36,9 @@ bot = commands.Bot(command_prefix="/", intents=intents)
 
 TARGET_CHANNEL = 1556979634141265995
 SCHEDULE_CHANNEL = 1556979634141265995
+ALERT_CHANNEL = int(os.getenv("DISCORD_ALERT_CHANNEL_ID", str(SCHEDULE_CHANNEL)))
+CRON_PORT = int(os.getenv("CRON_PORT", "8080"))
+CRON_SECRET = os.getenv("CRON_SECRET", "")
 try:
     KST = ZoneInfo("Asia/Seoul")
 except Exception:
@@ -158,6 +161,53 @@ def load_schedule_sent():
 def save_schedule_sent(data):
     with open(SCHEDULE_SENT_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+async def send_alert_message(text: str):
+    channel = bot.get_channel(ALERT_CHANNEL)
+    if channel is None:
+        try:
+            channel = await bot.fetch_channel(ALERT_CHANNEL)
+        except Exception:
+            channel = None
+
+    if channel is None:
+        print(f"[send_alert_message] 채널 {ALERT_CHANNEL}를 찾을 수 없습니다.")
+        return False
+
+    await channel.send(text)
+    return True
+
+async def handle_cron_request(request):
+    if CRON_SECRET:
+        auth_header = request.headers.get("Authorization", "")
+        auth_query = request.query.get("secret", "")
+        if auth_header not in {f"Bearer {CRON_SECRET}", CRON_SECRET} and auth_query != CRON_SECRET:
+            return aiohttp.web.json_response({"ok": False, "error": "unauthorized"}, status=401)
+
+    if request.method == "GET":
+        text = request.query.get("message", "⏰ 30분마다 크론 요청이 도착했습니다.")
+    else:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+        text = payload.get("message") or payload.get("text") or "⏰ 30분마다 크론 요청이 도착했습니다."
+
+    await send_alert_message(text)
+    return aiohttp.web.json_response({"ok": True, "message": text})
+
+async def start_http_server():
+    app = aiohttp.web.Application()
+    app.router.add_route("*", "/cron/awake", handle_cron_request)
+    app.router.add_route("*", "/cron/wakeup", handle_cron_request)
+    app.router.add_route("*", "/health", lambda request: aiohttp.web.json_response({"ok": True}))
+
+    runner = aiohttp.web.AppRunner(app)
+    await runner.setup()
+    site = aiohttp.web.TCPSite(runner, host="0.0.0.0", port=CRON_PORT)
+    await site.start()
+    print(f"[cron] HTTP 서버 시작: 0.0.0.0:{CRON_PORT}")
+
 
 data = load_data()
 schedule_sent_data = load_schedule_sent()
@@ -1077,4 +1127,10 @@ async def help_cmd(interaction: discord.Interaction):
         "/초기화(현재 채널 메시지기록 초기화)"
     )
 
-bot.run(TOKEN)
+async def main():
+    await start_http_server()
+    await bot.start(TOKEN)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
