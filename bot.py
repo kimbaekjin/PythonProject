@@ -1,12 +1,18 @@
+from dotenv import load_dotenv
 from discord.ext import commands
 import aiohttp, math, discord, re
 from urllib.parse import quote
 from collections import Counter
 import asyncio
 import datetime, json, os
-from zoneinfo import ZoneInfo
+try:
+    from zoneinfo import ZoneInfo
+except ModuleNotFoundError:
+    ZoneInfo = None
 from critical import *
 from wcwidth import wcswidth
+
+load_dotenv()
 
 # =========================
 # 환경변수
@@ -28,9 +34,12 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="/", intents=intents)
 
-TARGET_CHANNEL = 1481571646832775169
-SCHEDULE_CHANNEL = 1491719061048922202
-KST = ZoneInfo("Asia/Seoul")
+TARGET_CHANNEL = 1556979634141265995
+SCHEDULE_CHANNEL = 1556979634141265995
+try:
+    KST = ZoneInfo("Asia/Seoul")
+except Exception:
+    KST = datetime.timezone(datetime.timedelta(hours=9))
 
 # =========================
 # 요일별 레이드 일정
