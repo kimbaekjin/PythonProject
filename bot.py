@@ -164,19 +164,31 @@ def save_schedule_sent(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 async def send_alert_message(text: str):
+    if not bot.is_ready():
+        try:
+            await bot.wait_until_ready()
+        except Exception as e:
+            print(f"[send_alert_message] 봇 준비 대기 실패: {e}")
+            return False
+
     channel = bot.get_channel(ALERT_CHANNEL)
     if channel is None:
         try:
             channel = await bot.fetch_channel(ALERT_CHANNEL)
-        except Exception:
+        except Exception as e:
+            print(f"[send_alert_message] 채널 {ALERT_CHANNEL} 조회 실패: {e}")
             channel = None
 
     if channel is None:
         print(f"[send_alert_message] 채널 {ALERT_CHANNEL}를 찾을 수 없습니다.")
         return False
 
-    await channel.send(text)
-    return True
+    try:
+        await channel.send(text)
+        return True
+    except Exception as e:
+        print(f"[send_alert_message] 메시지 전송 실패: {e}")
+        return False
 
 async def handle_cron_request(request):
     if CRON_SECRET:
